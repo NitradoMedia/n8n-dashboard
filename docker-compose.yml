@@ -1,0 +1,17 @@
+version: "3.8"
+
+services:
+  n8n-fleet:
+    build: .
+    container_name: n8n-fleet-dashboard
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - n8n_fleet_data:/data
+    environment:
+      - PORT=3000
+      - DB_PATH=/data/dashboard.db
+
+volumes:
+  n8n_fleet_data:

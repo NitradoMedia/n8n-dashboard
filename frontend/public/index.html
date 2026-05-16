@@ -1,0 +1,1107 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>n8n Fleet Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:        #080b10;
+    --surface:   #0d1117;
+    --panel:     #111820;
+    --border:    #1e2d3d;
+    --border2:   #243447;
+    --accent:    #e8630a;
+    --accent2:   #ff8c3a;
+    --green:     #3ddc84;
+    --red:       #ff4757;
+    --yellow:    #ffd32a;
+    --blue:      #4ecdc4;
+    --text:      #c9d1d9;
+    --text-dim:  #6e7f8d;
+    --text-muted:#3d4f5c;
+    --mono:      'JetBrains Mono', monospace;
+    --sans:      'Syne', sans-serif;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 13px;
+    min-height: 100vh;
+    display: flex;
+    overflow: hidden;
+  }
+
+  /* ── Sidebar ─────────────────────────── */
+  .sidebar {
+    width: 220px;
+    min-height: 100vh;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+  }
+
+  .logo {
+    padding: 24px 20px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .logo-mark {
+    font-family: var(--sans);
+    font-size: 18px;
+    font-weight: 800;
+    color: #fff;
+    letter-spacing: -0.5px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .logo-mark span {
+    color: var(--accent);
+  }
+
+  .logo-sub {
+    font-size: 10px;
+    color: var(--text-muted);
+    margin-top: 3px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+
+  .nav {
+    flex: 1;
+    padding: 16px 0;
+  }
+
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 20px;
+    cursor: pointer;
+    color: var(--text-dim);
+    font-size: 12px;
+    font-weight: 400;
+    border-left: 2px solid transparent;
+    transition: all 0.15s;
+    user-select: none;
+  }
+
+  .nav-item:hover { color: var(--text); background: rgba(255,255,255,0.03); }
+  .nav-item.active { color: var(--accent); border-left-color: var(--accent); background: rgba(232,99,10,0.05); }
+
+  .nav-icon { width: 16px; text-align: center; font-size: 14px; }
+
+  .sidebar-footer {
+    padding: 16px 20px;
+    border-top: 1px solid var(--border);
+    font-size: 10px;
+    color: var(--text-muted);
+  }
+
+  /* ── Main ────────────────────────────── */
+  .main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .topbar {
+    height: 52px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 24px;
+    gap: 16px;
+    flex-shrink: 0;
+  }
+
+  .topbar-title {
+    font-family: var(--sans);
+    font-weight: 700;
+    font-size: 14px;
+    flex: 1;
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 14px;
+    border-radius: 4px;
+    border: none;
+    cursor: pointer;
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 600;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover { background: var(--accent2); }
+  .btn-ghost { background: transparent; color: var(--text-dim); border: 1px solid var(--border2); }
+  .btn-ghost:hover { color: var(--text); border-color: var(--text-dim); }
+  .btn-danger { background: rgba(255,71,87,0.15); color: var(--red); border: 1px solid rgba(255,71,87,0.3); }
+  .btn-danger:hover { background: rgba(255,71,87,0.25); }
+  .btn-green { background: rgba(61,220,132,0.15); color: var(--green); border: 1px solid rgba(61,220,132,0.3); }
+  .btn-green:hover { background: rgba(61,220,132,0.25); }
+  .btn-sm { padding: 4px 10px; font-size: 11px; }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px;
+  }
+
+  /* ── Pages ───────────────────────────── */
+  .page { display: none; }
+  .page.active { display: block; }
+
+  /* ── Stats Row ───────────────────────── */
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+
+  .stat-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 16px;
+  }
+
+  .stat-label {
+    font-size: 10px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    margin-bottom: 8px;
+  }
+
+  .stat-value {
+    font-family: var(--sans);
+    font-size: 28px;
+    font-weight: 800;
+    color: #fff;
+  }
+
+  .stat-value.green { color: var(--green); }
+  .stat-value.accent { color: var(--accent); }
+
+  /* ── Grid ────────────────────────────── */
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+
+  /* ── Cards ───────────────────────────── */
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+
+  .card-header {
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .card-title {
+    font-family: var(--sans);
+    font-size: 13px;
+    font-weight: 700;
+    color: #fff;
+  }
+
+  .card-body { padding: 16px 18px; }
+
+  /* ── Instance Cards ──────────────────── */
+  .instances-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 14px;
+  }
+
+  .instance-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 16px;
+    position: relative;
+    transition: border-color 0.2s;
+  }
+
+  .instance-card:hover { border-color: var(--border2); }
+  .instance-card.running { border-left: 3px solid var(--green); }
+  .instance-card.stopped { border-left: 3px solid var(--text-muted); }
+  .instance-card.exited  { border-left: 3px solid var(--red); }
+
+  .instance-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+
+  .instance-name {
+    font-family: var(--sans);
+    font-size: 15px;
+    font-weight: 700;
+    color: #fff;
+  }
+
+  .instance-server {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 2px;
+  }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 8px;
+    border-radius: 3px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+
+  .badge.running { background: rgba(61,220,132,0.15); color: var(--green); }
+  .badge.stopped, .badge.exited { background: rgba(255,71,87,0.12); color: var(--red); }
+  .badge.unknown { background: rgba(110,127,141,0.2); color: var(--text-dim); }
+  .badge::before { content: '●'; font-size: 8px; }
+
+  .instance-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    margin-bottom: 14px;
+  }
+
+  .meta-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+
+  .meta-row a { color: var(--blue); text-decoration: none; }
+  .meta-row a:hover { text-decoration: underline; }
+
+  .instance-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+
+  /* ── Server List ─────────────────────── */
+  .server-list { display: flex; flex-direction: column; gap: 10px; }
+
+  .server-item {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .server-info { flex: 1; }
+  .server-name { font-family: var(--sans); font-weight: 700; color: #fff; font-size: 14px; }
+  .server-detail { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
+  .server-actions { display: flex; gap: 6px; }
+
+  /* ── Forms ───────────────────────────── */
+  .form-group { margin-bottom: 14px; }
+
+  .form-label {
+    display: block;
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  .form-control {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border2);
+    border-radius: 4px;
+    padding: 9px 12px;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 12px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+
+  .form-control:focus { border-color: var(--accent); }
+  .form-control::placeholder { color: var(--text-muted); }
+
+  textarea.form-control {
+    resize: vertical;
+    min-height: 100px;
+    font-size: 11px;
+    line-height: 1.5;
+  }
+
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .form-row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+
+  /* ── Modal ───────────────────────────── */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(3px);
+  }
+
+  .modal-overlay.open { display: flex; }
+
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--border2);
+    border-radius: 8px;
+    width: 520px;
+    max-width: 95vw;
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+
+  .modal-header {
+    padding: 18px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .modal-title { font-family: var(--sans); font-weight: 700; font-size: 15px; }
+  .modal-close { background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: 18px; padding: 0 4px; }
+  .modal-close:hover { color: var(--text); }
+  .modal-body { padding: 20px; }
+  .modal-footer { padding: 14px 20px; border-top: 1px solid var(--border); display: flex; gap: 8px; justify-content: flex-end; }
+
+  /* ── Log Output ──────────────────────── */
+  .log-output {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 12px;
+    font-size: 11px;
+    color: var(--green);
+    min-height: 60px;
+    max-height: 200px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-break: break-all;
+    display: none;
+  }
+
+  .log-output.visible { display: block; }
+
+  /* ── Empty State ─────────────────────── */
+  .empty-state {
+    text-align: center;
+    padding: 48px 24px;
+    color: var(--text-muted);
+  }
+
+  .empty-icon { font-size: 36px; margin-bottom: 12px; }
+  .empty-text { font-size: 13px; }
+  .empty-sub { font-size: 11px; margin-top: 6px; }
+
+  /* ── Section Header ──────────────────── */
+  .section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+  }
+
+  .section-title {
+    font-family: var(--sans);
+    font-size: 16px;
+    font-weight: 700;
+    color: #fff;
+  }
+
+  .divider {
+    height: 1px;
+    background: var(--border);
+    margin: 20px 0;
+  }
+
+  /* ── Toast ───────────────────────────── */
+  .toast-container {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .toast {
+    background: var(--surface);
+    border: 1px solid var(--border2);
+    border-radius: 5px;
+    padding: 10px 16px;
+    font-size: 12px;
+    color: var(--text);
+    min-width: 240px;
+    animation: slideIn 0.2s ease;
+    border-left: 3px solid var(--accent);
+  }
+
+  .toast.success { border-left-color: var(--green); }
+  .toast.error   { border-left-color: var(--red); }
+
+  @keyframes slideIn {
+    from { transform: translateX(20px); opacity: 0; }
+    to   { transform: translateX(0); opacity: 1; }
+  }
+
+  /* ── Credentials Preview ─────────────── */
+  .cred-box {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 12px;
+    font-size: 11px;
+    line-height: 1.8;
+  }
+  .cred-key { color: var(--text-dim); }
+  .cred-val { color: var(--green); }
+
+  /* ── Scrollbar ───────────────────────── */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<!-- Sidebar -->
+<nav class="sidebar">
+  <div class="logo">
+    <div class="logo-mark">⬡ <span>n8n</span>Fleet</div>
+    <div class="logo-sub">Deployment Dashboard</div>
+  </div>
+  <div class="nav">
+    <div class="nav-item active" onclick="showPage('dashboard')">
+      <span class="nav-icon">◈</span> Dashboard
+    </div>
+    <div class="nav-item" onclick="showPage('instances')">
+      <span class="nav-icon">⬡</span> Instances
+    </div>
+    <div class="nav-item" onclick="showPage('servers')">
+      <span class="nav-icon">⬢</span> Server
+    </div>
+    <div class="nav-item" onclick="showPage('settings')">
+      <span class="nav-icon">◎</span> Einstellungen
+    </div>
+  </div>
+  <div class="sidebar-footer">
+    n8n Fleet v1.0<br>
+    <span id="footer-time"></span>
+  </div>
+</nav>
+
+<!-- Main -->
+<div class="main">
+  <div class="topbar">
+    <div class="topbar-title" id="page-title">Dashboard</div>
+    <button class="btn btn-ghost btn-sm" onclick="refreshAll()">↻ Refresh</button>
+    <button class="btn btn-primary btn-sm" id="topbar-action" onclick="openDeployModal()">+ Deploy n8n</button>
+  </div>
+
+  <div class="content">
+
+    <!-- Dashboard Page -->
+    <div class="page active" id="page-dashboard">
+      <div class="stats-row">
+        <div class="stat-card">
+          <div class="stat-label">Instances Total</div>
+          <div class="stat-value accent" id="stat-total">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Running</div>
+          <div class="stat-value green" id="stat-running">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Stopped</div>
+          <div class="stat-value" id="stat-stopped">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Server</div>
+          <div class="stat-value" id="stat-servers">0</div>
+        </div>
+      </div>
+
+      <div class="section-header">
+        <div class="section-title">Alle Instanzen</div>
+        <button class="btn btn-primary btn-sm" onclick="openDeployModal()">+ Deploy n8n</button>
+      </div>
+      <div class="instances-grid" id="dashboard-instances">
+        <div class="empty-state">
+          <div class="empty-icon">⬡</div>
+          <div class="empty-text">Keine Instanzen vorhanden</div>
+          <div class="empty-sub">Klicke auf „Deploy n8n" um zu starten</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Instances Page -->
+    <div class="page" id="page-instances">
+      <div class="section-header">
+        <div class="section-title">n8n Instanzen</div>
+        <button class="btn btn-primary btn-sm" onclick="openDeployModal()">+ Deploy n8n</button>
+      </div>
+      <div class="instances-grid" id="instances-list">
+        <div class="empty-state">
+          <div class="empty-icon">⬡</div>
+          <div class="empty-text">Keine Instanzen</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Servers Page -->
+    <div class="page" id="page-servers">
+      <div class="section-header">
+        <div class="section-title">Root Server</div>
+        <button class="btn btn-primary btn-sm" onclick="openServerModal()">+ Server hinzufügen</button>
+      </div>
+      <div class="server-list" id="servers-list">
+        <div class="empty-state">
+          <div class="empty-icon">⬢</div>
+          <div class="empty-text">Kein Server konfiguriert</div>
+          <div class="empty-sub">Füge deinen ersten Root-Server hinzu</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Settings Page -->
+    <div class="page" id="page-settings">
+      <div class="section-title" style="margin-bottom:20px">Einstellungen</div>
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-header"><div class="card-title">Standard n8n Konfiguration</div></div>
+          <div class="card-body">
+            <div class="form-group">
+              <label class="form-label">Standard Timezone</label>
+              <input class="form-control" id="cfg-tz" value="Europe/Berlin" placeholder="Europe/Berlin">
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Standard User</label>
+                <input class="form-control" id="cfg-user" value="admin" placeholder="admin">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Standard Passwort</label>
+                <input class="form-control" id="cfg-pass" placeholder="auto-generated">
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Standard Port</label>
+              <input class="form-control" id="cfg-port" type="number" value="5678">
+            </div>
+            <button class="btn btn-primary" onclick="saveSettings()">Speichern</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><div class="card-title">Info</div></div>
+          <div class="card-body" style="color:var(--text-dim);line-height:1.8;font-size:12px">
+            <p><strong style="color:var(--text)">n8n Fleet Dashboard</strong></p>
+            <p style="margin-top:8px">Verwalte n8n Docker-Instanzen auf beliebig vielen Root-Servern über eine zentrale Oberfläche.</p>
+            <div class="divider"></div>
+            <p>⬡ Instanzen starten/stoppen/entfernen</p>
+            <p>⬢ Mehrere Server per SSH</p>
+            <p>◎ Passwort- und SSH-Key-Auth</p>
+            <p>↻ Live-Status-Refresh</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast-container" id="toasts"></div>
+
+<!-- Modal: Server hinzufügen -->
+<div class="modal-overlay" id="modal-server">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="server-modal-title">Server hinzufügen</div>
+      <button class="modal-close" onclick="closeModal('modal-server')">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="server-edit-id">
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Name</label>
+          <input class="form-control" id="s-name" placeholder="Hetzner VPS #1">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Host / IP</label>
+          <input class="form-control" id="s-host" placeholder="85.214.6.92">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">SSH Port</label>
+          <input class="form-control" id="s-port" type="number" value="22">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Benutzername</label>
+          <input class="form-control" id="s-user" placeholder="root">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Passwort (optional wenn SSH Key gesetzt)</label>
+        <input class="form-control" id="s-pass" type="password" placeholder="••••••••">
+      </div>
+      <div class="form-group">
+        <label class="form-label">SSH Private Key (optional)</label>
+        <textarea class="form-control" id="s-key" placeholder="-----BEGIN OPENSSH PRIVATE KEY-----&#10;...&#10;-----END OPENSSH PRIVATE KEY-----"></textarea>
+      </div>
+      <div class="log-output" id="server-log"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="testServer()">⚡ Verbindung testen</button>
+      <button class="btn btn-ghost" onclick="closeModal('modal-server')">Abbrechen</button>
+      <button class="btn btn-primary" onclick="saveServer()">Speichern</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Deploy n8n -->
+<div class="modal-overlay" id="modal-deploy">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">n8n Instanz deployen</div>
+      <button class="modal-close" onclick="closeModal('modal-deploy')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">Ziel-Server</label>
+        <select class="form-control" id="d-server"></select>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Instanz-Name</label>
+          <input class="form-control" id="d-name" placeholder="mein-workflow">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Port</label>
+          <input class="form-control" id="d-port" type="number" value="5678">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">n8n Benutzer</label>
+          <input class="form-control" id="d-user" value="admin">
+        </div>
+        <div class="form-group">
+          <label class="form-label">n8n Passwort</label>
+          <input class="form-control" id="d-pass" placeholder="auto-generated">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Timezone</label>
+        <input class="form-control" id="d-tz" value="Europe/Berlin">
+      </div>
+      <div class="form-group" style="display:flex;align-items:center;gap:10px;margin-top:4px">
+        <input type="checkbox" id="d-secure-cookie" style="accent-color:var(--accent);width:15px;height:15px;cursor:pointer">
+        <label for="d-secure-cookie" style="font-size:11px;color:var(--text-dim);cursor:pointer;margin:0">
+          <code style="color:var(--accent)">N8N_SECURE_COOKIE=false</code> setzen
+          <span style="color:var(--text-muted)"> — deaktiviert Secure-Cookie (nicht empfohlen, aber nötig ohne HTTPS)</span>
+        </label>
+      </div>
+      <div class="log-output" id="deploy-log"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-deploy')">Abbrechen</button>
+      <button class="btn btn-primary" id="deploy-btn" onclick="deployInstance()">⬡ Deploy starten</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── State ──────────────────────────────────────────────────
+const API = '';
+let servers = [];
+let instances = [];
+let settings = JSON.parse(localStorage.getItem('n8n-fleet-settings') || '{"tz":"Europe/Berlin","user":"admin","pass":"","port":5678}');
+
+// ── Init ───────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  loadSettings();
+  refreshAll();
+  setInterval(updateClock, 1000);
+  setInterval(refreshAll, 30000);
+});
+
+function updateClock() {
+  const el = document.getElementById('footer-time');
+  if (el) el.textContent = new Date().toLocaleTimeString('de-DE');
+}
+
+function loadSettings() {
+  document.getElementById('cfg-tz').value   = settings.tz   || 'Europe/Berlin';
+  document.getElementById('cfg-user').value = settings.user || 'admin';
+  document.getElementById('cfg-pass').value = settings.pass || '';
+  document.getElementById('cfg-port').value = settings.port || 5678;
+}
+
+function saveSettings() {
+  settings.tz   = document.getElementById('cfg-tz').value;
+  settings.user = document.getElementById('cfg-user').value;
+  settings.pass = document.getElementById('cfg-pass').value;
+  settings.port = parseInt(document.getElementById('cfg-port').value) || 5678;
+  localStorage.setItem('n8n-fleet-settings', JSON.stringify(settings));
+  // Apply to deploy defaults
+  document.getElementById('d-tz').value   = settings.tz;
+  document.getElementById('d-user').value = settings.user;
+  document.getElementById('d-pass').value = settings.pass;
+  document.getElementById('d-port').value = settings.port;
+  toast('Einstellungen gespeichert', 'success');
+}
+
+async function refreshAll() {
+  await Promise.all([fetchServers(), fetchInstances()]);
+  renderDashboard();
+  renderInstancesList();
+  renderServersList();
+}
+
+// ── API ────────────────────────────────────────────────────
+async function api(method, path, body) {
+  const res = await fetch(API + path, {
+    method,
+    headers: {'Content-Type': 'application/json'},
+    body: body ? JSON.stringify(body) : undefined
+  });
+  return res.json();
+}
+
+async function fetchServers() {
+  try { servers = await api('GET', '/api/servers'); } catch {}
+}
+
+async function fetchInstances() {
+  try { instances = await api('GET', '/api/instances'); } catch {}
+}
+
+// ── Render ─────────────────────────────────────────────────
+function renderDashboard() {
+  const running = instances.filter(i => i.status === 'running').length;
+  const stopped = instances.filter(i => i.status !== 'running').length;
+  document.getElementById('stat-total').textContent   = instances.length;
+  document.getElementById('stat-running').textContent = running;
+  document.getElementById('stat-stopped').textContent = stopped;
+  document.getElementById('stat-servers').textContent = servers.length;
+
+  const el = document.getElementById('dashboard-instances');
+  el.innerHTML = instances.length ? instances.map(instanceCard).join('') : emptyState('⬡', 'Keine Instanzen vorhanden', 'Klicke auf „Deploy n8n" um zu starten');
+}
+
+function renderInstancesList() {
+  const el = document.getElementById('instances-list');
+  el.innerHTML = instances.length ? instances.map(instanceCard).join('') : emptyState('⬡', 'Keine Instanzen');
+}
+
+function renderServersList() {
+  const el = document.getElementById('servers-list');
+  if (!servers.length) {
+    el.innerHTML = emptyState('⬢', 'Kein Server konfiguriert', 'Füge deinen ersten Root-Server hinzu');
+    return;
+  }
+  el.innerHTML = servers.map(s => `
+    <div class="server-item">
+      <div class="server-info">
+        <div class="server-name">⬢ ${esc(s.name)}</div>
+        <div class="server-detail">${esc(s.username)}@${esc(s.host)}:${s.port}</div>
+      </div>
+      <div class="server-actions">
+        <button class="btn btn-ghost btn-sm" onclick="testServerById('${s.id}')">⚡ Test</button>
+        <button class="btn btn-green btn-sm" onclick="openDeployModal('${s.id}')">+ Deploy</button>
+        <button class="btn btn-ghost btn-sm" onclick="editServer('${s.id}')">✎ Edit</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteServer('${s.id}')">✕</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function instanceCard(i) {
+  const statusClass = i.status === 'running' ? 'running' : (i.status === 'stopped' ? 'stopped' : 'exited');
+  const statusLabel = i.status || 'unknown';
+  const url = i.webhook_url || `http://${i.server_host}:${i.n8n_port}`;
+  return `
+    <div class="instance-card ${statusClass}" id="icard-${i.id}">
+      <div class="instance-header">
+        <div>
+          <div class="instance-name">⬡ ${esc(i.name)}</div>
+          <div class="instance-server">▸ ${esc(i.server_name || i.server_host)}</div>
+        </div>
+        <span class="badge ${statusClass}">${statusLabel}</span>
+      </div>
+      <div class="instance-meta">
+        <div class="meta-row">🔗 <a href="${url}" target="_blank">${url}</a></div>
+        <div class="meta-row">📦 <code>${esc(i.container_name)}</code></div>
+        <div class="meta-row">🔌 Port ${i.n8n_port}</div>
+      </div>
+      <div class="instance-actions">
+        ${i.status !== 'running' ? `<button class="btn btn-green btn-sm" onclick="instanceAction('${i.id}','start')">▶ Start</button>` : ''}
+        ${i.status === 'running'  ? `<button class="btn btn-ghost btn-sm" onclick="instanceAction('${i.id}','stop')">⏹ Stop</button>` : ''}
+        <button class="btn btn-ghost btn-sm" onclick="instanceAction('${i.id}','restart')">↻ Restart</button>
+        <button class="btn btn-ghost btn-sm" onclick="refreshInstanceStatus('${i.id}')">⟳ Status</button>
+        <button class="btn btn-danger btn-sm" onclick="instanceAction('${i.id}','remove')">✕ Remove</button>
+      </div>
+    </div>`;
+}
+
+function emptyState(icon, text, sub='') {
+  return `<div class="empty-state"><div class="empty-icon">${icon}</div><div class="empty-text">${text}</div>${sub ? `<div class="empty-sub">${sub}</div>` : ''}</div>`;
+}
+
+// ── Navigation ─────────────────────────────────────────────
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n => {
+    if (n.textContent.trim().toLowerCase().includes(name === 'dashboard' ? 'dashboard' : name === 'instances' ? 'instanzen' : name === 'servers' ? 'server' : 'einstellungen')) {
+      n.classList.add('active');
+    }
+  });
+  const titles = { dashboard: 'Dashboard', instances: 'Instanzen', servers: 'Server', settings: 'Einstellungen' };
+  document.getElementById('page-title').textContent = titles[name] || name;
+}
+
+// ── Server Modal ───────────────────────────────────────────
+function openServerModal(prefill) {
+  document.getElementById('server-edit-id').value = '';
+  document.getElementById('server-modal-title').textContent = 'Server hinzufügen';
+  document.getElementById('s-name').value = prefill?.name || '';
+  document.getElementById('s-host').value = prefill?.host || '';
+  document.getElementById('s-port').value = prefill?.port || 22;
+  document.getElementById('s-user').value = prefill?.username || '';
+  document.getElementById('s-pass').value = '';
+  document.getElementById('s-key').value  = '';
+  hideLog('server-log');
+  openModal('modal-server');
+}
+
+function editServer(id) {
+  const s = servers.find(x => x.id === id);
+  if (!s) return;
+  openServerModal(s);
+  document.getElementById('server-edit-id').value = id;
+  document.getElementById('server-modal-title').textContent = 'Server bearbeiten';
+}
+
+async function saveServer() {
+  const id = document.getElementById('server-edit-id').value;
+  const body = {
+    name:     document.getElementById('s-name').value.trim(),
+    host:     document.getElementById('s-host').value.trim(),
+    port:     parseInt(document.getElementById('s-port').value) || 22,
+    username: document.getElementById('s-user').value.trim(),
+    password: document.getElementById('s-pass').value,
+    ssh_key:  document.getElementById('s-key').value.trim()
+  };
+  if (!body.name || !body.host || !body.username) { toast('Name, Host und Benutzername erforderlich', 'error'); return; }
+
+  if (id) {
+    await api('PUT', `/api/servers/${id}`, body);
+    toast('Server aktualisiert', 'success');
+  } else {
+    await api('POST', '/api/servers', body);
+    toast('Server hinzugefügt', 'success');
+  }
+  closeModal('modal-server');
+  refreshAll();
+}
+
+async function deleteServer(id) {
+  if (!confirm('Server und alle Einträge löschen?')) return;
+  await api('DELETE', `/api/servers/${id}`);
+  toast('Server gelöscht');
+  refreshAll();
+}
+
+async function testServer() {
+  const id = document.getElementById('server-edit-id').value;
+  if (!id) { toast('Erst speichern, dann testen', 'error'); return; }
+  await testServerById(id);
+}
+
+async function testServerById(id) {
+  showLog('server-log', '⚡ Verbinde...');
+  try {
+    const r = await api('POST', `/api/servers/${id}/test`);
+    if (r.ok) showLog('server-log', '✅ Verbindung erfolgreich!\n' + r.output, 'green');
+    else showLog('server-log', '❌ Fehler: ' + r.error, 'red');
+  } catch(e) {
+    showLog('server-log', '❌ ' + e.message, 'red');
+  }
+}
+
+// ── Deploy Modal ───────────────────────────────────────────
+async function openDeployModal(serverId) {
+  const sel = document.getElementById('d-server');
+  sel.innerHTML = servers.length
+    ? servers.map(s => `<option value="${s.id}" ${s.id === serverId ? 'selected' : ''}>${esc(s.name)} (${esc(s.host)})</option>`).join('')
+    : '<option value="">— Kein Server verfügbar —</option>';
+
+  document.getElementById('d-name').value = '';
+  document.getElementById('d-user').value = settings.user || 'admin';
+  document.getElementById('d-pass').value = settings.pass || '';
+  document.getElementById('d-tz').value   = settings.tz || 'Europe/Berlin';
+  document.getElementById('d-secure-cookie').checked = false;
+  document.getElementById('deploy-btn').disabled = false;
+  hideLog('deploy-log');
+
+  try {
+    const { port } = await api('GET', `/api/next-port?from=${settings.port || 5678}`);
+    document.getElementById('d-port').value = port;
+  } catch {
+    document.getElementById('d-port').value = settings.port || 5678;
+  }
+
+  openModal('modal-deploy');
+}
+
+async function deployInstance() {
+  const serverId = document.getElementById('d-server').value;
+  const name     = document.getElementById('d-name').value.trim();
+  if (!serverId || !name) { toast('Server und Name erforderlich', 'error'); return; }
+
+  const btn = document.getElementById('deploy-btn');
+  btn.disabled = true;
+  btn.textContent = '⟳ Deploying...';
+  showLog('deploy-log', `⬡ Starte n8n Deployment auf Server...\n> docker run ... n8nio/n8n:latest`);
+
+  try {
+    const r = await api('POST', `/api/servers/${serverId}/instances`, {
+      name,
+      n8n_port:      parseInt(document.getElementById('d-port').value) || 5678,
+      n8n_user:      document.getElementById('d-user').value || 'admin',
+      n8n_pass:      document.getElementById('d-pass').value || undefined,
+      timezone:      document.getElementById('d-tz').value || 'Europe/Berlin',
+      secure_cookie: !document.getElementById('d-secure-cookie').checked
+    });
+
+    if (r.error) {
+      showLog('deploy-log', '❌ Fehler: ' + r.error, 'red');
+      btn.disabled = false; btn.textContent = '⬡ Deploy starten';
+      return;
+    }
+
+    const credsHtml = `
+<div class="cred-box" style="margin-top:12px">
+  <div><span class="cred-key">URL:       </span><span class="cred-val">${r.webhookUrl}</span></div>
+  <div><span class="cred-key">Benutzer:  </span><span class="cred-val">${r.n8n_user}</span></div>
+  <div><span class="cred-key">Passwort:  </span><span class="cred-val">${r.n8n_pass}</span></div>
+  <div><span class="cred-key">Container: </span><span class="cred-val">${r.containerName}</span></div>
+</div>`;
+
+    showLog('deploy-log', '✅ Deployment erfolgreich!\n' + (r.output || ''));
+    document.getElementById('deploy-log').insertAdjacentHTML('afterend', credsHtml);
+
+    toast('n8n deployed: ' + name, 'success');
+    await refreshAll();
+    btn.textContent = '✅ Deployed!';
+  } catch(e) {
+    showLog('deploy-log', '❌ ' + e.message, 'red');
+    btn.disabled = false; btn.textContent = '⬡ Deploy starten';
+  }
+}
+
+// ── Instance Actions ───────────────────────────────────────
+async function instanceAction(id, action) {
+  const labels = { start: '▶ Starten', stop: '⏹ Stoppen', restart: '↻ Neustart', remove: '✕ Entfernen' };
+  if (action === 'remove' && !confirm('Instanz wirklich entfernen?')) return;
+
+  toast(`${labels[action] || action}...`);
+  try {
+    const r = await api('POST', `/api/instances/${id}/action`, { action });
+    if (r.ok) {
+      toast(labels[action] + ' erfolgreich', 'success');
+      await refreshAll();
+    } else {
+      toast('Fehler: ' + r.error, 'error');
+    }
+  } catch(e) { toast('Fehler: ' + e.message, 'error'); }
+}
+
+async function refreshInstanceStatus(id) {
+  try {
+    const r = await api('POST', `/api/instances/${id}/status`);
+    toast('Status: ' + r.status);
+    await refreshAll();
+  } catch(e) { toast('Fehler', 'error'); }
+}
+
+// ── Helpers ────────────────────────────────────────────────
+function openModal(id)  { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+function showLog(id, text, color) {
+  const el = document.getElementById(id);
+  el.classList.add('visible');
+  el.style.color = color === 'red' ? 'var(--red)' : color === 'green' ? 'var(--green)' : 'var(--green)';
+  el.textContent = text;
+}
+
+function hideLog(id) {
+  const el = document.getElementById(id);
+  el.classList.remove('visible');
+  el.textContent = '';
+}
+
+function toast(msg, type='info') {
+  const el = document.createElement('div');
+  el.className = 'toast ' + type;
+  el.textContent = msg;
+  document.getElementById('toasts').appendChild(el);
+  setTimeout(() => el.remove(), 3500);
+}
+
+function esc(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// Close modals on overlay click
+document.querySelectorAll('.modal-overlay').forEach(o => {
+  o.addEventListener('click', e => { if (e.target === o) o.classList.remove('open'); });
+});
+</script>
+</body>
+</html>

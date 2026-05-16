@@ -1,0 +1,13 @@
+{
+  "name": "n8n-dashboard-backend",
+  "version": "1.0.0",
+  "main": "server.js",
+  "dependencies": {
+    "express": "^4.18.2",
+    "ssh2": "^1.15.0",
+    "cors": "^2.8.5",
+    "body-parser": "^1.20.2",
+    "better-sqlite3": "^9.4.3",
+    "uuid": "^9.0.0"
+  }
+}
