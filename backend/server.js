@@ -39,7 +39,52 @@ db.exec(`
     config TEXT NOT NULL,
     created_at INTEGER DEFAULT (strftime('%s','now'))
   );
+  CREATE TABLE IF NOT EXISTS catalog (
+    id TEXT PRIMARY KEY, name TEXT NOT NULL, image TEXT NOT NULL,
+    description TEXT DEFAULT '', category TEXT DEFAULT 'Sonstige',
+    ports TEXT DEFAULT '[]', env TEXT DEFAULT '[]',
+    volumes TEXT DEFAULT '[]', restart TEXT DEFAULT 'unless-stopped',
+    created_at INTEGER DEFAULT (strftime('%s','now'))
+  );
 `);
+
+// ─── Seed catalog ─────────────────────────────────────────────
+if (db.prepare('SELECT COUNT(*) as c FROM catalog').get().c === 0) {
+  const seed = [
+    { name:'n8n', image:'n8nio/n8n', description:'Workflow-Automatisierung & KI-Pipelines', category:'Automation',
+      ports:[{host:5678,container:5678}], env:[{key:'N8N_BASIC_AUTH_ACTIVE',val:'true'},{key:'N8N_BASIC_AUTH_USER',val:'admin'},{key:'N8N_BASIC_AUTH_PASSWORD',val:'changeme123'},{key:'GENERIC_TIMEZONE',val:'Europe/Berlin'},{key:'TZ',val:'Europe/Berlin'}], volumes:[{host:'n8n_data',container:'/home/node/.n8n'}] },
+    { name:'Nextcloud', image:'nextcloud:latest', description:'Self-hosted Cloud-Speicher & Kollaboration', category:'Storage',
+      ports:[{host:8080,container:80}], env:[{key:'NEXTCLOUD_ADMIN_USER',val:'admin'},{key:'NEXTCLOUD_ADMIN_PASSWORD',val:'changeme123'},{key:'NEXTCLOUD_TRUSTED_DOMAINS',val:'*'}], volumes:[{host:'nextcloud_data',container:'/var/www/html'}] },
+    { name:'WordPress', image:'wordpress:latest', description:'Content-Management-System', category:'Web',
+      ports:[{host:8080,container:80}], env:[{key:'WORDPRESS_DB_HOST',val:'127.0.0.1'},{key:'WORDPRESS_DB_USER',val:'wp'},{key:'WORDPRESS_DB_PASSWORD',val:'changeme123'},{key:'WORDPRESS_DB_NAME',val:'wordpress'}], volumes:[{host:'wp_data',container:'/var/www/html'}] },
+    { name:'Nginx', image:'nginx:latest', description:'Web-Server & Reverse Proxy', category:'Web',
+      ports:[{host:8080,container:80}], env:[], volumes:[{host:'nginx_html',container:'/usr/share/nginx/html'}] },
+    { name:'PostgreSQL', image:'postgres:16', description:'Relationale Datenbank', category:'Datenbank',
+      ports:[{host:5432,container:5432}], env:[{key:'POSTGRES_USER',val:'admin'},{key:'POSTGRES_PASSWORD',val:'changeme123'},{key:'POSTGRES_DB',val:'mydb'}], volumes:[{host:'pg_data',container:'/var/lib/postgresql/data'}] },
+    { name:'MariaDB', image:'mariadb:latest', description:'MySQL-kompatible Datenbank', category:'Datenbank',
+      ports:[{host:3306,container:3306}], env:[{key:'MYSQL_ROOT_PASSWORD',val:'changeme123'},{key:'MYSQL_DATABASE',val:'mydb'},{key:'MYSQL_USER',val:'admin'},{key:'MYSQL_PASSWORD',val:'changeme123'}], volumes:[{host:'mariadb_data',container:'/var/lib/mysql'}] },
+    { name:'MongoDB', image:'mongo:latest', description:'NoSQL-Datenbank', category:'Datenbank',
+      ports:[{host:27017,container:27017}], env:[{key:'MONGO_INITDB_ROOT_USERNAME',val:'admin'},{key:'MONGO_INITDB_ROOT_PASSWORD',val:'changeme123'}], volumes:[{host:'mongo_data',container:'/data/db'}] },
+    { name:'Redis', image:'redis:alpine', description:'In-Memory Cache & Message Broker', category:'Datenbank',
+      ports:[{host:6379,container:6379}], env:[], volumes:[{host:'redis_data',container:'/data'}] },
+    { name:'Portainer', image:'portainer/portainer-ce:latest', description:'Docker-Management-UI', category:'DevOps',
+      ports:[{host:9000,container:9000},{host:9443,container:9443}], env:[], volumes:[{host:'/var/run/docker.sock',container:'/var/run/docker.sock'},{host:'portainer_data',container:'/data'}] },
+    { name:'Gitea', image:'gitea/gitea:latest', description:'Self-hosted Git-Service', category:'DevOps',
+      ports:[{host:3000,container:3000},{host:2222,container:22}], env:[{key:'GITEA__database__DB_TYPE',val:'sqlite3'},{key:'GITEA__server__DOMAIN',val:'localhost'},{key:'GITEA__server__HTTP_PORT',val:'3000'}], volumes:[{host:'gitea_data',container:'/data'}] },
+    { name:'Grafana', image:'grafana/grafana:latest', description:'Monitoring & Dashboards', category:'Monitoring',
+      ports:[{host:3000,container:3000}], env:[{key:'GF_SECURITY_ADMIN_USER',val:'admin'},{key:'GF_SECURITY_ADMIN_PASSWORD',val:'changeme123'}], volumes:[{host:'grafana_data',container:'/var/lib/grafana'}] },
+    { name:'Uptime Kuma', image:'louislam/uptime-kuma:latest', description:'Self-hosted Monitoring-Tool', category:'Monitoring',
+      ports:[{host:3001,container:3001}], env:[], volumes:[{host:'uptime_data',container:'/app/data'}] },
+    { name:'Vaultwarden', image:'vaultwarden/server:latest', description:'Bitwarden-kompatibler Passwort-Manager', category:'Security',
+      ports:[{host:8080,container:80}], env:[{key:'ADMIN_TOKEN',val:'changeme-secure-token'},{key:'WEBSOCKET_ENABLED',val:'true'}], volumes:[{host:'vaultwarden_data',container:'/data'}] },
+    { name:'Jellyfin', image:'jellyfin/jellyfin:latest', description:'Media-Server', category:'Media',
+      ports:[{host:8096,container:8096},{host:8920,container:8920}], env:[{key:'JELLYFIN_PublishedServerUrl',val:'http://localhost:8096'}], volumes:[{host:'jellyfin_config',container:'/config'},{host:'jellyfin_cache',container:'/cache'},{host:'/media',container:'/media'}] },
+    { name:'Ghost', image:'ghost:latest', description:'Blog & Publishing-Plattform', category:'Web',
+      ports:[{host:2368,container:2368}], env:[{key:'url',val:'http://localhost:2368'},{key:'database__client',val:'sqlite3'}], volumes:[{host:'ghost_content',container:'/var/lib/ghost/content'}] },
+  ];
+  const ins = db.prepare("INSERT INTO catalog VALUES (?,?,?,?,?,?,?,?,?,strftime('%s','now'))");
+  for (const s of seed) ins.run(uuidv4(), s.name, s.image, s.description, s.category, JSON.stringify(s.ports), JSON.stringify(s.env), JSON.stringify(s.volumes), s.restart||'unless-stopped');
+}
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
 
@@ -172,6 +217,32 @@ app.post('/api/templates', (req, res) => {
 
 app.delete('/api/templates/:id', (req, res) => {
   db.prepare('DELETE FROM templates WHERE id=?').run(req.params.id);
+  res.json({ ok: true });
+});
+
+// ─── CATALOG ─────────────────────────────────────────────────
+function parseCatalog(row) {
+  return { ...row, ports: JSON.parse(row.ports), env: JSON.parse(row.env), volumes: JSON.parse(row.volumes) };
+}
+app.get('/api/catalog', (req, res) => {
+  res.json(db.prepare('SELECT * FROM catalog ORDER BY category, name').all().map(parseCatalog));
+});
+app.post('/api/catalog', (req, res) => {
+  const { name, image, description='', category='Sonstige', ports=[], env=[], volumes=[], restart='unless-stopped' } = req.body;
+  if (!name || !image) return res.status(400).json({ error: 'name und image erforderlich' });
+  const id = uuidv4();
+  db.prepare("INSERT INTO catalog VALUES (?,?,?,?,?,?,?,?,?,strftime('%s','now'))")
+    .run(id, name, image, description, category, JSON.stringify(ports), JSON.stringify(env), JSON.stringify(volumes), restart);
+  res.json({ id });
+});
+app.put('/api/catalog/:id', (req, res) => {
+  const { name, image, description='', category='Sonstige', ports=[], env=[], volumes=[], restart='unless-stopped' } = req.body;
+  db.prepare('UPDATE catalog SET name=?,image=?,description=?,category=?,ports=?,env=?,volumes=?,restart=? WHERE id=?')
+    .run(name, image, description, category, JSON.stringify(ports), JSON.stringify(env), JSON.stringify(volumes), restart, req.params.id);
+  res.json({ ok: true });
+});
+app.delete('/api/catalog/:id', (req, res) => {
+  db.prepare('DELETE FROM catalog WHERE id=?').run(req.params.id);
   res.json({ ok: true });
 });
 

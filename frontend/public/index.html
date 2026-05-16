@@ -22,25 +22,64 @@
   body { background: var(--bg); color: var(--text); font-family: var(--mono); font-size: 13px; min-height: 100vh; display: flex; overflow: hidden; }
 
   /* Sidebar */
-  .sidebar { width: 220px; min-height: 100vh; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; flex-shrink: 0; }
-  .logo { padding: 24px 20px 20px; border-bottom: 1px solid var(--border); }
-  .logo-mark { font-family: var(--sans); font-size: 18px; font-weight: 800; color: #fff; letter-spacing: -0.5px; display: flex; align-items: center; gap: 8px; }
-  .logo-mark span { color: var(--accent); }
-  .logo-sub { font-size: 10px; color: var(--text-muted); margin-top: 3px; letter-spacing: 2px; text-transform: uppercase; }
-  .nav { flex: 1; padding: 16px 0; }
-  .nav-item { display: flex; align-items: center; gap: 10px; padding: 10px 20px; cursor: pointer; color: var(--text-dim); font-size: 12px; font-weight: 400; border-left: 2px solid transparent; transition: all 0.15s; user-select: none; }
+  .sidebar { width: 210px; min-height: 100vh; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; flex-shrink: 0; transition: transform 0.25s ease; z-index: 500; }
+  .logo { padding: 12px 14px 10px; border-bottom: 1px solid var(--border); overflow: hidden; }
+  .logo-mark { font-family: var(--sans); font-size: 12px; font-weight: 800; color: #fff; letter-spacing: -0.3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.3; }
+  .logo-mark .accent { color: var(--accent); }
+  .logo-mark .dim { color: var(--text-dim); font-weight: 600; font-size: 11px; }
+  .logo-sub { font-size: 9px; color: var(--text-muted); margin-top: 2px; letter-spacing: 1.5px; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .nav { flex: 1; padding: 12px 0; }
+  .nav-item { display: flex; align-items: center; gap: 10px; padding: 9px 16px; cursor: pointer; color: var(--text-dim); font-size: 12px; font-weight: 400; border-left: 2px solid transparent; transition: all 0.15s; user-select: none; }
   .nav-item:hover { color: var(--text); background: rgba(255,255,255,0.03); }
   .nav-item.active { color: var(--accent); border-left-color: var(--accent); background: rgba(232,99,10,0.05); }
-  .nav-icon { width: 16px; text-align: center; font-size: 14px; }
-  .sidebar-footer { padding: 16px 20px; border-top: 1px solid var(--border); font-size: 10px; color: var(--text-muted); }
+  .nav-icon { width: 16px; text-align: center; font-size: 13px; }
+  .sidebar-footer { padding: 12px 16px; border-top: 1px solid var(--border); font-size: 10px; color: var(--text-muted); }
 
   /* Main */
-  .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
-  .topbar { height: 52px; background: var(--surface); border-bottom: 1px solid var(--border); display: flex; align-items: center; padding: 0 24px; gap: 16px; flex-shrink: 0; }
-  .topbar-title { font-family: var(--sans); font-weight: 700; font-size: 14px; flex: 1; }
-  .content { flex: 1; overflow-y: auto; padding: 24px; }
+  .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+  .topbar { height: 48px; background: var(--surface); border-bottom: 1px solid var(--border); display: flex; align-items: center; padding: 0 20px; gap: 12px; flex-shrink: 0; }
+  .topbar-title { font-family: var(--sans); font-weight: 700; font-size: 13px; flex: 1; }
+  .content { flex: 1; overflow-y: auto; padding: 20px; }
   .page { display: none; }
   .page.active { display: block; }
+
+  /* Hamburger */
+  .hamburger { display: none; background: none; border: none; color: var(--text-dim); cursor: pointer; padding: 4px; font-size: 18px; line-height: 1; flex-shrink: 0; }
+  .hamburger:hover { color: var(--text); }
+  .sidebar-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 499; backdrop-filter: blur(2px); }
+  .sidebar-overlay.open { display: block; }
+
+  /* ── Mobile ─────────────────────────────────────────── */
+  @media (max-width: 768px) {
+    body { overflow-y: auto; }
+    .hamburger { display: block; }
+    .sidebar { position: fixed; left: 0; top: 0; height: 100vh; transform: translateX(-100%); }
+    .sidebar.open { transform: translateX(0); box-shadow: 4px 0 24px rgba(0,0,0,0.5); }
+    .content { padding: 14px; }
+    .stats-row { grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+    .stat-value { font-size: 22px; }
+    .grid-2 { grid-template-columns: 1fr; }
+    .instances-grid { grid-template-columns: 1fr; }
+    .catalog-grid { grid-template-columns: 1fr; }
+    .monitor-grid { grid-template-columns: 1fr; }
+    .template-grid { grid-template-columns: 1fr; }
+    .form-row { grid-template-columns: 1fr; }
+    .form-row-3 { grid-template-columns: 1fr 1fr; }
+    .modal { width: 100% !important; max-width: 100vw; border-radius: 12px 12px 0 0; margin-top: auto; }
+    .modal-overlay { align-items: flex-end; }
+    .server-item { flex-wrap: wrap; gap: 10px; }
+    .server-actions { flex-wrap: wrap; }
+    .instance-actions { flex-wrap: wrap; }
+    .topbar { padding: 0 14px; gap: 8px; }
+    .section-header { flex-wrap: wrap; gap: 8px; }
+    .cat-filter { gap: 4px; }
+    .cat-filter-btn { font-size: 10px; padding: 3px 8px; }
+  }
+  @media (max-width: 480px) {
+    .stats-row { grid-template-columns: 1fr 1fr; }
+    .topbar-title { font-size: 12px; }
+    .btn-sm { padding: 4px 8px; font-size: 10px; }
+  }
 
   /* Buttons */
   .btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 4px; border: none; cursor: pointer; font-family: var(--mono); font-size: 12px; font-weight: 600; transition: all 0.15s; white-space: nowrap; }
@@ -179,6 +218,20 @@
   .monitor-footer a { color: var(--blue); text-decoration: none; }
   .monitor-footer a:hover { text-decoration: underline; }
 
+  /* Catalog */
+  .catalog-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px,1fr)); gap: 14px; }
+  .catalog-card { background: var(--panel); border: 1px solid var(--border); border-radius: 6px; padding: 16px; display: flex; flex-direction: column; gap: 10px; transition: border-color 0.2s; }
+  .catalog-card:hover { border-color: var(--border2); }
+  .catalog-image-badge { display: inline-block; background: rgba(232,99,10,0.12); color: var(--accent); border: 1px solid rgba(232,99,10,0.3); border-radius: 3px; font-size: 10px; padding: 2px 7px; font-weight: 700; font-family: var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+  .catalog-name { font-family: var(--sans); font-size: 15px; font-weight: 700; color: #fff; }
+  .catalog-desc { font-size: 11px; color: var(--text-dim); line-height: 1.5; }
+  .catalog-category { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; }
+  .catalog-actions { display: flex; gap: 6px; margin-top: auto; }
+  .cat-filter { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
+  .cat-filter-btn { padding: 4px 12px; border-radius: 20px; border: 1px solid var(--border2); background: transparent; color: var(--text-dim); font-family: var(--mono); font-size: 11px; cursor: pointer; transition: all 0.15s; }
+  .cat-filter-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .cat-filter-btn.active { background: rgba(232,99,10,0.15); border-color: var(--accent); color: var(--accent); }
+
   /* Templates */
   .template-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px,1fr)); gap: 14px; }
   .template-card { background: var(--panel); border: 1px solid var(--border); border-radius: 6px; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
@@ -212,7 +265,7 @@
 
 <nav class="sidebar">
   <div class="logo">
-    <div class="logo-mark">⬡ <span>NitradoMedia</span> Fleet</div>
+    <div class="logo-mark">⬡ <span class="accent">NitradoMedia</span> <span class="dim">Fleet</span></div>
     <div class="logo-sub">Deployment Dashboard</div>
   </div>
   <div class="nav">
@@ -220,16 +273,19 @@
     <div class="nav-item" onclick="showPage('instances')"><span class="nav-icon">⬡</span> Instances</div>
     <div class="nav-item" onclick="showPage('servers')"><span class="nav-icon">⬢</span> Server</div>
     <div class="nav-item" onclick="showPage('monitor')"><span class="nav-icon">▦</span> Monitor</div>
+    <div class="nav-item" onclick="showPage('katalog')"><span class="nav-icon">⊞</span> Image-Katalog</div>
     <div class="nav-item" onclick="showPage('vorlagen')"><span class="nav-icon">◧</span> Vorlagen</div>
     <div class="nav-item" onclick="showPage('settings')"><span class="nav-icon">◎</span> Einstellungen</div>
   </div>
   <div class="sidebar-footer">NitradoMedia Fleet v2.0<br><span id="footer-time"></span></div>
 </nav>
+<div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleSidebar()"></div>
 
 <div class="main">
   <div class="topbar">
+    <button class="hamburger" onclick="toggleSidebar()" aria-label="Menü">☰</button>
     <div class="topbar-title" id="page-title">Dashboard</div>
-    <button class="btn btn-ghost btn-sm" onclick="refreshAll()">↻ Refresh</button>
+    <button class="btn btn-ghost btn-sm" onclick="refreshAll()">↻</button>
     <button class="btn btn-primary btn-sm" onclick="openDeployModal()">+ Deploy</button>
   </div>
   <div class="content">
@@ -281,6 +337,18 @@
       </div>
       <div id="monitor-grid" class="monitor-grid">
         <div class="empty-state"><div class="empty-icon">▦</div><div class="empty-text">Keine laufenden Container</div></div>
+      </div>
+    </div>
+
+    <!-- Katalog -->
+    <div class="page" id="page-katalog">
+      <div class="section-header">
+        <div class="section-title">Image-Katalog</div>
+        <button class="btn btn-primary btn-sm" onclick="openCatalogModal()">+ Image hinzufügen</button>
+      </div>
+      <div class="cat-filter" id="cat-filter"></div>
+      <div class="catalog-grid" id="catalog-grid">
+        <div class="empty-state"><div class="empty-icon">⊞</div><div class="empty-text">Lade Katalog...</div></div>
       </div>
     </div>
 
@@ -383,18 +451,9 @@
             <select class="form-control" id="d-server"></select>
           </div>
           <div class="form-group">
-            <label class="form-label">Preset</label>
+            <label class="form-label">Aus Katalog</label>
             <select class="form-control" id="d-preset" onchange="applyPreset()">
-              <option value="">— Preset wählen —</option>
-              <option value="n8n">n8n</option>
-              <option value="nextcloud">Nextcloud</option>
-              <option value="wordpress">WordPress</option>
-              <option value="nginx">Nginx</option>
-              <option value="postgres">PostgreSQL</option>
-              <option value="redis">Redis</option>
-              <option value="portainer">Portainer</option>
-              <option value="gitea">Gitea</option>
-              <option value="custom">Custom</option>
+              <option value="">— Katalog wählen —</option>
             </select>
           </div>
         </div>
@@ -484,6 +543,65 @@
   </div>
 </div>
 
+<!-- ══ Modal: Katalog Add/Edit ════════════════════════════════ -->
+<div class="modal-overlay" id="modal-catalog">
+  <div class="modal" style="width:640px">
+    <div class="modal-header">
+      <div class="modal-title" id="catalog-modal-title">Image hinzufügen</div>
+      <button class="modal-close" onclick="closeModal('modal-catalog')">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="cat-edit-id">
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Name</label><input class="form-control" id="cat-name" placeholder="Nextcloud"></div>
+        <div class="form-group"><label class="form-label">Kategorie</label>
+          <select class="form-control" id="cat-category">
+            <option>Automation</option><option>Web</option><option>Storage</option>
+            <option>Datenbank</option><option>DevOps</option><option>Monitoring</option>
+            <option>Security</option><option>Media</option><option>Sonstige</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group"><label class="form-label">Docker Image</label><input class="form-control" id="cat-image" placeholder="nextcloud:latest"></div>
+      <div class="form-group"><label class="form-label">Beschreibung</label><input class="form-control" id="cat-desc" placeholder="Kurze Beschreibung..."></div>
+      <div class="form-group">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <label class="form-label" style="margin:0">Port-Mappings <span style="color:var(--text-muted)">(Host : Container)</span></label>
+          <button class="btn btn-ghost btn-sm" onclick="addCatPortRow()">+ Port</button>
+        </div>
+        <div id="cat-ports"></div>
+      </div>
+      <div class="form-group">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <label class="form-label" style="margin:0">Umgebungsvariablen</label>
+          <button class="btn btn-ghost btn-sm" onclick="addCatEnvRow()">+ ENV</button>
+        </div>
+        <div id="cat-envs"></div>
+      </div>
+      <div class="form-group">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <label class="form-label" style="margin:0">Volumes <span style="color:var(--text-muted)">(Host / Name : Pfad)</span></label>
+          <button class="btn btn-ghost btn-sm" onclick="addCatVolRow()">+ Volume</button>
+        </div>
+        <div id="cat-vols"></div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Restart-Policy</label>
+        <select class="form-control" id="cat-restart">
+          <option value="unless-stopped">unless-stopped</option>
+          <option value="always">always</option>
+          <option value="on-failure">on-failure</option>
+          <option value="no">no</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-catalog')">Abbrechen</button>
+      <button class="btn btn-primary" onclick="saveCatalogEntry()">Speichern</button>
+    </div>
+  </div>
+</div>
+
 <!-- ══ Terminal ═══════════════════════════════════════════════ -->
 <div class="terminal-overlay" id="modal-terminal">
   <div class="terminal-topbar">
@@ -497,65 +615,14 @@
 <script>
 // ── State ────────────────────────────────────────────────────
 const API = '';
-let servers = [], instances = [], templates = [];
+let servers = [], instances = [], templates = [], catalog = [];
 let settings = JSON.parse(localStorage.getItem('n8n-fleet-settings') || '{"tz":"Europe/Berlin","user":"admin","pass":"","port":5678}');
 let currentDeployTab = 'image';
 let composeFile = null;
 let statsInterval = null;
 let term = null, fitAddon = null, termWs = null;
-
-// ── Presets ──────────────────────────────────────────────────
-const PRESETS = {
-  n8n: {
-    image: 'n8nio/n8n:latest',
-    ports: [{h:5678, c:5678}],
-    env: [{k:'N8N_BASIC_AUTH_ACTIVE',v:'true'},{k:'N8N_BASIC_AUTH_USER',v:'admin'},{k:'N8N_BASIC_AUTH_PASSWORD',v:''},{k:'GENERIC_TIMEZONE',v:'Europe/Berlin'},{k:'TZ',v:'Europe/Berlin'}],
-    vols: [{h:'n8n_data',c:'/home/node/.n8n'}],
-  },
-  nextcloud: {
-    image: 'nextcloud:latest',
-    ports: [{h:8080, c:80}],
-    env: [{k:'NEXTCLOUD_ADMIN_USER',v:'admin'},{k:'NEXTCLOUD_ADMIN_PASSWORD',v:'changeme123'},{k:'NEXTCLOUD_TRUSTED_DOMAINS',v:'*'}],
-    vols: [{h:'nextcloud_data',c:'/var/www/html'}],
-  },
-  wordpress: {
-    image: 'wordpress:latest',
-    ports: [{h:8080, c:80}],
-    env: [{k:'WORDPRESS_DB_HOST',v:'db'},{k:'WORDPRESS_DB_USER',v:'wp'},{k:'WORDPRESS_DB_PASSWORD',v:''},{k:'WORDPRESS_DB_NAME',v:'wordpress'}],
-    vols: [{h:'wp_data',c:'/var/www/html'}],
-  },
-  nginx: {
-    image: 'nginx:alpine',
-    ports: [{h:8080, c:80}],
-    env: [],
-    vols: [],
-  },
-  postgres: {
-    image: 'postgres:16-alpine',
-    ports: [{h:5432, c:5432}],
-    env: [{k:'POSTGRES_USER',v:'admin'},{k:'POSTGRES_PASSWORD',v:''},{k:'POSTGRES_DB',v:'mydb'}],
-    vols: [{h:'pg_data',c:'/var/lib/postgresql/data'}],
-  },
-  redis: {
-    image: 'redis:alpine',
-    ports: [{h:6379, c:6379}],
-    env: [],
-    vols: [],
-  },
-  portainer: {
-    image: 'portainer/portainer-ce:latest',
-    ports: [{h:9000, c:9000},{h:9443, c:9443}],
-    env: [],
-    vols: [{h:'/var/run/docker.sock',c:'/var/run/docker.sock'},{h:'portainer_data',c:'/data'}],
-  },
-  gitea: {
-    image: 'gitea/gitea:latest',
-    ports: [{h:3000, c:3000},{h:222, c:22}],
-    env: [{k:'GITEA__database__DB_TYPE',v:'sqlite3'}],
-    vols: [{h:'gitea_data',c:'/data'}],
-  },
-  custom: { image: '', ports: [], env: [], vols: [] },
-};
+let activeCatFilter = 'Alle';
+let catalogEditId = null;
 
 // ── Init ─────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
@@ -599,13 +666,14 @@ async function api(method, path, body) {
 }
 
 async function refreshAll() {
-  await Promise.all([fetchServers(), fetchInstances(), fetchTemplates()]);
-  renderDashboard(); renderInstancesList(); renderServersList(); renderTemplates();
+  await Promise.all([fetchServers(), fetchInstances(), fetchTemplates(), fetchCatalog()]);
+  renderDashboard(); renderInstancesList(); renderServersList(); renderTemplates(); renderCatalog();
 }
 
 async function fetchServers()   { try { servers   = await api('GET','/api/servers');   } catch {} }
 async function fetchInstances() { try { instances = await api('GET','/api/instances'); } catch {} }
 async function fetchTemplates() { try { templates = await api('GET','/api/templates'); } catch {} }
+async function fetchCatalog()   { try { catalog   = await api('GET','/api/catalog');   } catch {} }
 
 // ── Render ───────────────────────────────────────────────────
 function renderDashboard() {
@@ -655,6 +723,155 @@ function renderTemplates() {
     </div>`).join('')}</div>`;
 }
 
+// ── Catalog Render ───────────────────────────────────────────
+function renderCatalog() {
+  const cats = ['Alle', ...new Set(catalog.map(c => c.category))].sort((a,b) => a==='Alle'?-1:b==='Alle'?1:a.localeCompare(b));
+  document.getElementById('cat-filter').innerHTML = cats.map(c =>
+    `<button class="cat-filter-btn${c===activeCatFilter?' active':''}" onclick="setCatFilter('${c}')">${c}</button>`
+  ).join('');
+  const filtered = activeCatFilter==='Alle' ? catalog : catalog.filter(c => c.category===activeCatFilter);
+  const grid = document.getElementById('catalog-grid');
+  if (!filtered.length) { grid.innerHTML = `<div class="empty-state"><div class="empty-icon">⊞</div><div class="empty-text">Keine Images in dieser Kategorie</div></div>`; return; }
+  grid.innerHTML = filtered.map(c => `
+    <div class="catalog-card">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
+        <div class="catalog-name">${esc(c.name)}</div>
+        <span class="catalog-category">${esc(c.category)}</span>
+      </div>
+      <div class="catalog-image-badge" title="${esc(c.image)}">⬡ ${esc(c.image)}</div>
+      <div class="catalog-desc">${esc(c.description||'')}</div>
+      <div style="font-size:10px;color:var(--text-muted);display:flex;gap:12px">
+        ${c.ports.length ? `<span>🔌 ${c.ports.map(p=>p.host+'→'+p.container).join(', ')}</span>` : ''}
+        ${c.volumes.length ? `<span>💾 ${c.volumes.length} Vol.</span>` : ''}
+        ${c.env.length ? `<span>⚙ ${c.env.length} ENV</span>` : ''}
+      </div>
+      <div class="catalog-actions">
+        <button class="btn btn-green btn-sm" onclick="deployFromCatalog('${c.id}')">▶ Deploy</button>
+        <button class="btn btn-ghost btn-sm" onclick="editCatalogEntry('${c.id}')">✎ Bearbeiten</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteCatalogEntry('${c.id}')">✕</button>
+      </div>
+    </div>`).join('');
+  // also populate deploy modal preset dropdown
+  const sel = document.getElementById('d-preset');
+  if (sel) {
+    const cur = sel.value;
+    sel.innerHTML = '<option value="">— Katalog wählen —</option>' +
+      catalog.map(c => `<option value="${c.id}">${esc(c.name)} — ${esc(c.image)}</option>`).join('');
+    sel.value = cur;
+  }
+}
+
+function setCatFilter(cat) { activeCatFilter = cat; renderCatalog(); }
+
+function deployFromCatalog(id) {
+  const entry = catalog.find(c => c.id === id);
+  if (!entry) return;
+  openDeployModal();
+  setTimeout(() => {
+    document.getElementById('d-image').value = entry.image;
+    document.getElementById('d-ports').innerHTML = '';
+    document.getElementById('d-envs').innerHTML  = '';
+    document.getElementById('d-vols').innerHTML  = '';
+    entry.ports.forEach(p => addPortRow(p.host, p.container));
+    entry.env.forEach(e   => addEnvRow(e.key, e.val));
+    entry.volumes.forEach(v => addVolRow(v.host, v.container));
+    document.getElementById('d-preset').value = id;
+  }, 50);
+}
+
+// ── Catalog Modal ────────────────────────────────────────────
+function openCatalogModal(id = null) {
+  catalogEditId = id;
+  document.getElementById('catalog-modal-title').textContent = id ? 'Image bearbeiten' : 'Image hinzufügen';
+  document.getElementById('cat-edit-id').value = id || '';
+  document.getElementById('cat-ports').innerHTML = '';
+  document.getElementById('cat-envs').innerHTML  = '';
+  document.getElementById('cat-vols').innerHTML  = '';
+  if (id) {
+    const e = catalog.find(c => c.id === id);
+    if (!e) return;
+    document.getElementById('cat-name').value  = e.name;
+    document.getElementById('cat-image').value = e.image;
+    document.getElementById('cat-desc').value  = e.description || '';
+    document.getElementById('cat-category').value = e.category || 'Sonstige';
+    document.getElementById('cat-restart').value  = e.restart  || 'unless-stopped';
+    e.ports.forEach(p   => addCatPortRow(p.host, p.container));
+    e.env.forEach(ev    => addCatEnvRow(ev.key, ev.val));
+    e.volumes.forEach(v => addCatVolRow(v.host, v.container));
+  } else {
+    document.getElementById('cat-name').value     = '';
+    document.getElementById('cat-image').value    = '';
+    document.getElementById('cat-desc').value     = '';
+    document.getElementById('cat-category').value = 'Sonstige';
+    document.getElementById('cat-restart').value  = 'unless-stopped';
+  }
+  openModal('modal-catalog');
+}
+
+function editCatalogEntry(id) { openCatalogModal(id); }
+
+async function deleteCatalogEntry(id) {
+  if (!confirm('Image aus dem Katalog löschen?')) return;
+  await api('DELETE', `/api/catalog/${id}`);
+  await fetchCatalog(); renderCatalog();
+  toast('Gelöscht', 'success');
+}
+
+async function saveCatalogEntry() {
+  const id    = document.getElementById('cat-edit-id').value;
+  const name  = document.getElementById('cat-name').value.trim();
+  const image = document.getElementById('cat-image').value.trim();
+  if (!name || !image) { toast('Name und Image erforderlich', 'error'); return; }
+  const body = {
+    name, image,
+    description: document.getElementById('cat-desc').value.trim(),
+    category:    document.getElementById('cat-category').value,
+    restart:     document.getElementById('cat-restart').value,
+    ports:   getCatPortRows(),
+    env:     getCatEnvRows(),
+    volumes: getCatVolRows(),
+  };
+  if (id) await api('PUT',  `/api/catalog/${id}`, body);
+  else     await api('POST', '/api/catalog', body);
+  await fetchCatalog(); renderCatalog();
+  closeModal('modal-catalog');
+  toast(id ? 'Aktualisiert' : 'Hinzugefügt', 'success');
+}
+
+function addCatPortRow(h='', c='') {
+  const d = document.createElement('div'); d.className = 'dyn-row';
+  d.innerHTML = `<input class="form-control" type="number" placeholder="Host-Port" value="${esc(String(h))}"><span class="dyn-sep">→</span><input class="form-control" type="number" placeholder="Container-Port" value="${esc(String(c))}"><button class="dyn-del" onclick="this.parentElement.remove()">✕</button>`;
+  document.getElementById('cat-ports').appendChild(d);
+}
+function addCatEnvRow(k='', v='') {
+  const d = document.createElement('div'); d.className = 'dyn-row';
+  d.innerHTML = `<input class="form-control" placeholder="KEY" value="${esc(k)}"><span class="dyn-sep">=</span><input class="form-control" placeholder="value" value="${esc(v)}"><button class="dyn-del" onclick="this.parentElement.remove()">✕</button>`;
+  document.getElementById('cat-envs').appendChild(d);
+}
+function addCatVolRow(h='', c='') {
+  const d = document.createElement('div'); d.className = 'dyn-row';
+  d.innerHTML = `<input class="form-control" placeholder="Host / Volume-Name" value="${esc(h)}"><span class="dyn-sep">:</span><input class="form-control" placeholder="/container/pfad" value="${esc(c)}"><button class="dyn-del" onclick="this.parentElement.remove()">✕</button>`;
+  document.getElementById('cat-vols').appendChild(d);
+}
+function getCatPortRows()  { return [...document.getElementById('cat-ports').children].map(r => { const [h,c] = r.querySelectorAll('input'); return h&&c&&h.value&&c.value?{host:parseInt(h.value),container:parseInt(c.value)}:null; }).filter(Boolean); }
+function getCatEnvRows()   { return [...document.getElementById('cat-envs').children].map(r  => { const [k,v] = r.querySelectorAll('input'); return k&&k.value?{key:k.value,val:v?v.value:''}:null; }).filter(Boolean); }
+function getCatVolRows()   { return [...document.getElementById('cat-vols').children].map(r  => { const [h,c] = r.querySelectorAll('input'); return h&&c&&h.value&&c.value?{host:h.value,container:c.value}:null; }).filter(Boolean); }
+
+// ── applyPreset (from catalog) ───────────────────────────────
+function applyPreset() {
+  const id = document.getElementById('d-preset').value;
+  if (!id) return;
+  const entry = catalog.find(c => c.id === id);
+  if (!entry) return;
+  document.getElementById('d-image').value = entry.image;
+  document.getElementById('d-ports').innerHTML = '';
+  document.getElementById('d-envs').innerHTML  = '';
+  document.getElementById('d-vols').innerHTML  = '';
+  entry.ports.forEach(p   => addPortRow(p.host, p.container));
+  entry.env.forEach(e     => addEnvRow(e.key, e.val));
+  entry.volumes.forEach(v => addVolRow(v.host, v.container));
+}
+
 function instanceCard(i) {
   const sc = i.status==='running' ? 'running' : (i.status==='stopped' ? 'stopped' : 'exited');
   const url = i.webhook_url || `http://${i.server_host}:${i.n8n_port}`;
@@ -684,19 +901,34 @@ function emptyState(icon, text, sub='') {
 }
 
 // ── Navigation ───────────────────────────────────────────────
-const PAGE_TITLES = { dashboard:'Dashboard', instances:'Instanzen', servers:'Server', monitor:'Live Monitor', vorlagen:'Vorlagen', settings:'Einstellungen' };
+const PAGE_TITLES = { dashboard:'Dashboard', instances:'Instanzen', servers:'Server', monitor:'Live Monitor', katalog:'Image-Katalog', vorlagen:'Vorlagen', settings:'Einstellungen' };
 
 function showPage(name) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.getElementById('page-' + name).classList.add('active');
   document.querySelectorAll('.nav-item').forEach(n => {
-    if (n.textContent.trim().toLowerCase().includes(name === 'vorlagen' ? 'vorlagen' : name === 'monitor' ? 'monitor' : name === 'instances' ? 'instances' : name === 'servers' ? 'server' : name)) n.classList.add('active');
+    if (n.getAttribute('onclick') === `showPage('${name}')`) n.classList.add('active');
   });
   document.getElementById('page-title').textContent = PAGE_TITLES[name] || name;
   clearInterval(statsInterval);
   if (name === 'monitor') { fetchStats(); statsInterval = setInterval(fetchStats, 10000); }
   if (name === 'vorlagen') fetchTemplates().then(renderTemplates);
+  if (name === 'katalog')  fetchCatalog().then(renderCatalog);
+  // close sidebar on mobile after navigation
+  if (window.innerWidth <= 768) closeSidebar();
+}
+
+function toggleSidebar() {
+  const sb = document.getElementById('sidebar') || document.querySelector('.sidebar');
+  const ov = document.getElementById('sidebar-overlay');
+  const open = sb.classList.toggle('open');
+  ov.classList.toggle('open', open);
+}
+
+function closeSidebar() {
+  document.querySelector('.sidebar').classList.remove('open');
+  document.getElementById('sidebar-overlay').classList.remove('open');
 }
 
 // ── Server Modal ─────────────────────────────────────────────
@@ -792,6 +1024,11 @@ async function openDeployModal(serverId) {
     if (!document.getElementById('d-ports').children.length) addPortRow(port, 5678);
   } catch { addPortRow(settings.port||5678, 5678); }
 
+  // populate catalog preset dropdown
+  const sel = document.getElementById('d-preset');
+  sel.innerHTML = '<option value="">— Katalog wählen —</option>' +
+    catalog.map(c => `<option value="${c.id}">${esc(c.name)} — ${esc(c.image)}</option>`).join('');
+
   renderTemplatePicker();
   openModal('modal-deploy');
 }
@@ -804,19 +1041,6 @@ function switchDeployTab(tab) {
   });
   document.getElementById('save-template-wrap').style.display = tab === 'template' ? 'none' : '';
   document.getElementById('deploy-btn').textContent = tab === 'compose' ? '📦 Deploy Compose' : '⬡ Deploy';
-}
-
-function applyPreset() {
-  const key = document.getElementById('d-preset').value;
-  if (!key || !PRESETS[key]) return;
-  const p = PRESETS[key];
-  document.getElementById('d-image').value = p.image;
-  document.getElementById('d-ports').innerHTML = '';
-  document.getElementById('d-envs').innerHTML  = '';
-  document.getElementById('d-vols').innerHTML  = '';
-  p.ports.forEach(x => addPortRow(x.h, x.c));
-  p.env.forEach(x => addEnvRow(x.k, x.v));
-  p.vols.forEach(x => addVolRow(x.h, x.c));
 }
 
 function addPortRow(h='', c='') {
