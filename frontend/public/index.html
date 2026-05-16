@@ -497,6 +497,48 @@
   .cred-key { color: var(--text-dim); }
   .cred-val { color: var(--green); }
 
+  /* ── Monitor ────────────────────────── */
+  .monitor-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: 14px;
+  }
+  .monitor-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--green);
+    border-radius: 6px;
+    padding: 16px;
+  }
+  .monitor-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+  }
+  .monitor-name { font-family: var(--sans); font-size: 14px; font-weight: 700; color: #fff; }
+  .monitor-sub  { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+  .monitor-metrics { display: flex; flex-direction: column; gap: 10px; }
+  .metric-row { display: flex; flex-direction: column; gap: 4px; }
+  .metric-label { display: flex; justify-content: space-between; font-size: 10px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1px; }
+  .metric-val { color: var(--text); font-weight: 600; }
+  .progress-bar { height: 4px; background: var(--border2); border-radius: 2px; overflow: hidden; }
+  .progress-fill { height: 100%; border-radius: 2px; transition: width 0.4s ease; background: var(--green); }
+  .progress-fill.warn  { background: var(--yellow); }
+  .progress-fill.alert { background: var(--red); }
+  .monitor-footer {
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 10px;
+    color: var(--text-muted);
+  }
+  .monitor-footer a { color: var(--blue); text-decoration: none; }
+  .monitor-footer a:hover { text-decoration: underline; }
+
   /* ── Scrollbar ───────────────────────── */
   ::-webkit-scrollbar { width: 6px; height: 6px; }
   ::-webkit-scrollbar-track { background: transparent; }
@@ -520,6 +562,9 @@
     </div>
     <div class="nav-item" onclick="showPage('servers')">
       <span class="nav-icon">⬢</span> Server
+    </div>
+    <div class="nav-item" onclick="showPage('monitor')">
+      <span class="nav-icon">▦</span> Monitor
     </div>
     <div class="nav-item" onclick="showPage('settings')">
       <span class="nav-icon">◎</span> Einstellungen
@@ -601,6 +646,17 @@
           <div class="empty-text">Kein Server konfiguriert</div>
           <div class="empty-sub">Füge deinen ersten Root-Server hinzu</div>
         </div>
+      </div>
+    </div>
+
+    <!-- Monitor Page -->
+    <div class="page" id="page-monitor">
+      <div class="section-header">
+        <div class="section-title">Live Monitor</div>
+        <button class="btn btn-ghost btn-sm" onclick="fetchStats()">↻ Refresh</button>
+      </div>
+      <div id="monitor-grid" class="monitor-grid">
+        <div class="empty-state"><div class="empty-icon">▦</div><div class="empty-text">Keine laufenden Instanzen</div></div>
       </div>
     </div>
 
@@ -800,6 +856,74 @@ async function refreshAll() {
   renderServersList();
 }
 
+// ── Stats / Monitor ────────────────────────────────────────
+let statsInterval = null;
+
+async function fetchStats() {
+  const el = document.getElementById('monitor-grid');
+  try {
+    const stats = await api('GET', '/api/stats');
+    if (!stats.length) {
+      el.innerHTML = `<div class="empty-state"><div class="empty-icon">▦</div><div class="empty-text">Keine laufenden Instanzen</div></div>`;
+      return;
+    }
+    el.innerHTML = stats.map(monitorCard).join('');
+  } catch(e) {
+    el.innerHTML = `<div class="empty-state"><div class="empty-text">Fehler beim Laden der Stats</div></div>`;
+  }
+}
+
+function monitorCard(s) {
+  const cpuPct = parseFloat(s.cpu) || 0;
+  const memPct = parseFloat(s.memPct) || 0;
+  const cpuClass = cpuPct > 80 ? 'alert' : cpuPct > 50 ? 'warn' : '';
+  const memClass = memPct > 80 ? 'alert' : memPct > 50 ? 'warn' : '';
+  const uptime = s.startedAt ? timeSince(new Date(s.startedAt)) : (s.runningFor || '—');
+  const displayName = s.instance_name || s.container_name;
+  const url = s.webhook_url || null;
+  const portBadge = s.ports ? s.ports.split(',').map(p => p.trim()).filter(Boolean).map(p => `<code style="color:var(--blue);font-size:10px">${esc(p)}</code>`).join(' ') : '';
+
+  return `
+  <div class="monitor-card">
+    <div class="monitor-card-header">
+      <div>
+        <div class="monitor-name">${s.managed ? '⬡' : '▪'} ${esc(displayName)}</div>
+        <div class="monitor-sub">${esc(s.server_name)} · ${esc(s.server_host)}</div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
+        <span class="badge running">running</span>
+        ${s.managed ? '<span style="font-size:9px;color:var(--accent);letter-spacing:1px;text-transform:uppercase">fleet</span>' : ''}
+      </div>
+    </div>
+    <div style="font-size:10px;color:var(--text-muted);margin-bottom:10px;display:flex;align-items:center;gap:6px">
+      <span>📦 ${esc(s.image || '—')}</span>
+      ${portBadge ? `<span style="margin-left:4px">${portBadge}</span>` : ''}
+    </div>
+    <div class="monitor-metrics">
+      <div class="metric-row">
+        <div class="metric-label"><span>CPU</span><span class="metric-val">${s.cpu}</span></div>
+        <div class="progress-bar"><div class="progress-fill ${cpuClass}" style="width:${Math.min(cpuPct,100)}%"></div></div>
+      </div>
+      <div class="metric-row">
+        <div class="metric-label"><span>RAM</span><span class="metric-val">${s.mem}</span></div>
+        <div class="progress-bar"><div class="progress-fill ${memClass}" style="width:${Math.min(memPct,100)}%"></div></div>
+      </div>
+    </div>
+    <div class="monitor-footer">
+      <span>⬆ ${uptime}</span>
+      ${url ? `<a href="${url}" target="_blank">↗ Öffnen</a>` : ''}
+    </div>
+  </div>`;
+}
+
+function timeSince(date) {
+  const s = Math.floor((Date.now() - date) / 1000);
+  if (s < 60)   return s + 's';
+  if (s < 3600)  return Math.floor(s/60) + 'm';
+  if (s < 86400) return Math.floor(s/3600) + 'h ' + Math.floor((s%3600)/60) + 'm';
+  return Math.floor(s/86400) + 'd ' + Math.floor((s%86400)/3600) + 'h';
+}
+
 // ── API ────────────────────────────────────────────────────
 async function api(method, path, body) {
   const res = await fetch(API + path, {
@@ -895,13 +1019,18 @@ function showPage(name) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.getElementById('page-' + name).classList.add('active');
+  const keywords = { dashboard: 'dashboard', instances: 'instances', servers: 'server', monitor: 'monitor', settings: 'einstellungen' };
   document.querySelectorAll('.nav-item').forEach(n => {
-    if (n.textContent.trim().toLowerCase().includes(name === 'dashboard' ? 'dashboard' : name === 'instances' ? 'instanzen' : name === 'servers' ? 'server' : 'einstellungen')) {
-      n.classList.add('active');
-    }
+    if (n.textContent.trim().toLowerCase().includes(keywords[name] || name)) n.classList.add('active');
   });
-  const titles = { dashboard: 'Dashboard', instances: 'Instanzen', servers: 'Server', settings: 'Einstellungen' };
+  const titles = { dashboard: 'Dashboard', instances: 'Instanzen', servers: 'Server', monitor: 'Live Monitor', settings: 'Einstellungen' };
   document.getElementById('page-title').textContent = titles[name] || name;
+
+  clearInterval(statsInterval);
+  if (name === 'monitor') {
+    fetchStats();
+    statsInterval = setInterval(fetchStats, 10000);
+  }
 }
 
 // ── Server Modal ───────────────────────────────────────────

@@ -253,6 +253,70 @@ app.post('/api/instances/:id/status', async (req, res) => {
   }
 });
 
+// ─── STATS API (alle Container auf allen Servern) ───────────
+app.get('/api/stats', async (req, res) => {
+  const servers = db.prepare('SELECT * FROM servers').all();
+  if (!servers.length) return res.json([]);
+
+  const results = [];
+
+  await Promise.all(servers.map(async (srv) => {
+    const server = { host: srv.host, port: srv.port, username: srv.username, password: srv.password, ssh_key: srv.ssh_key };
+    try {
+      // Get all running containers
+      const psRes = await sshExec(server, `docker ps --format "{{.Names}}|{{.Image}}|{{.Ports}}|{{.RunningFor}}" 2>/dev/null`);
+      const lines = psRes.output.trim().split('\n').filter(Boolean);
+      if (!lines.length) return;
+
+      const names = lines.map(l => l.split('|')[0]).join(' ');
+
+      const [statsRes, inspectRes] = await Promise.all([
+        sshExec(server, `docker stats --no-stream --format "{{.Name}}|{{.CPUPerc}}|{{.MemUsage}}|{{.MemPerc}}" ${names} 2>/dev/null`),
+        sshExec(server, `docker inspect --format "{{.Name}}|{{.State.StartedAt}}" ${names} 2>/dev/null`)
+      ]);
+
+      const statsMap = {};
+      for (const line of statsRes.output.trim().split('\n').filter(Boolean)) {
+        const [n, cpu, mem, memPct] = line.split('|');
+        statsMap[n.replace(/^\//, '')] = { cpu: cpu || '0%', mem: mem || '—', memPct: memPct || '0%' };
+      }
+
+      const startedMap = {};
+      for (const line of inspectRes.output.trim().split('\n').filter(Boolean)) {
+        const [n, startedAt] = line.split('|');
+        startedMap[n.replace(/^\//, '')] = startedAt || null;
+      }
+
+      for (const line of lines) {
+        const [containerName, image, ports, runningFor] = line.split('|');
+        const s = statsMap[containerName] || { cpu: 'N/A', mem: 'N/A', memPct: '0%' };
+        // Check if this container is a dashboard-managed instance
+        const managed = db.prepare('SELECT id, name, webhook_url, n8n_port FROM instances WHERE container_name=?').get(containerName);
+        results.push({
+          container_name: containerName,
+          image,
+          ports: ports || '',
+          runningFor,
+          server_name: srv.name,
+          server_host: srv.host,
+          cpu: s.cpu,
+          mem: s.mem,
+          memPct: s.memPct,
+          startedAt: startedMap[containerName] || null,
+          managed: !!managed,
+          instance_name: managed?.name || null,
+          webhook_url: managed?.webhook_url || null,
+          n8n_port: managed?.n8n_port || null,
+        });
+      }
+    } catch (e) {
+      results.push({ container_name: '—', image: '—', server_name: srv.name, server_host: srv.host, cpu: 'SSH Fehler', mem: '—', memPct: '0%', startedAt: null, managed: false, error: e.message });
+    }
+  }));
+
+  res.json(results);
+});
+
 // ─── Catch-all → frontend ────────────────────────────────────
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '../frontend/public/index.html'));
