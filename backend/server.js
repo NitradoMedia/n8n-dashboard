@@ -244,7 +244,7 @@ function auditLog(req, action, targetType, targetName, details) {
   ).catch(() => {});
 }
 
-app.get('/api/logs', requireAdmin, async (req, res) => {
+app.get('/api/logs', requireAuth, requireAdmin, async (req, res) => {
   const limit = Math.min(parseInt(req.query.limit) || 200, 500);
   const { rows } = await pgPool.query(
     'SELECT * FROM audit_logs ORDER BY created_at DESC LIMIT $1', [limit]
@@ -618,6 +618,52 @@ app.delete('/api/servers/:id', (req, res) => {
   res.json({ ok: true });
 });
 
+// ─── SERVER STATS ─────────────────────────────────────────────
+app.get('/api/servers/stats', async (req, res) => {
+  const servers = db.prepare('SELECT * FROM servers').all();
+
+  // Three separate awk one-liners joined with ; — no bash-c wrapper, no quoting issues
+  // Output example:
+  //   cpu=34.2
+  //   mem=7982:3241
+  //   disk=102400000:41234567:40
+  const CMD = [
+    `awk '/^cpu /{u=$2+$3+$4+$6+$7+$8;t=u+$5;printf "cpu=%.1f\\n",u*100/t}' /proc/stat`,
+    `free -m | awk 'NR==2{printf "mem=%d:%d\\n",$2,$3}'`,
+    `df / | awk 'NR==2{printf "disk=%d:%d:%d\\n",$2,$3,$5+0}'`
+  ].join('; ');
+
+  const results = await Promise.all(servers.map(async srv => {
+    const base = { id: srv.id, name: srv.name, host: srv.host };
+    try {
+      const r = await sshExec(srv, CMD);
+      const vals = {};
+      r.output.trim().split('\n').forEach(l => {
+        const eq = l.indexOf('=');
+        if (eq > 0) vals[l.slice(0, eq).trim()] = l.slice(eq + 1).trim();
+      });
+
+      const [mem_total, mem_used]         = (vals.mem  || ':').split(':').map(Number);
+      const [disk_total, disk_used, disk_pct] = (vals.disk || '::').split(':').map(Number);
+
+      return {
+        ...base,
+        cpu:       parseFloat(vals.cpu) || 0,
+        mem_total: mem_total  || 0,
+        mem_used:  mem_used   || 0,
+        disk_total:disk_total || 0,
+        disk_used: disk_used  || 0,
+        disk_pct:  disk_pct   || 0,
+        raw: r.output.trim(),
+        online: true
+      };
+    } catch(e) {
+      return { ...base, online: false, error: e.message };
+    }
+  }));
+  res.json(results);
+});
+
 app.post('/api/servers/:id/test', async (req, res) => {
   const srv = db.prepare('SELECT * FROM servers WHERE id=?').get(req.params.id);
   if (!srv) return res.status(404).json({ error: 'Not found' });
@@ -952,6 +998,63 @@ app.post('/api/instances/:id/action', async (req, res) => {
     }
     res.json({ ok: true, output: r.output.trim() });
   } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ─── INSTANCE CLONE ─────────────────────────────────────────
+app.post('/api/instances/:id/clone', requireAdmin, async (req, res) => {
+  const inst = db.prepare('SELECT i.*, s.host AS srv_host, s.port AS srv_port, s.username, s.password, s.ssh_key, s.name AS srv_name FROM instances i JOIN servers s ON i.server_id=s.id WHERE i.id=?').get(req.params.id);
+  if (!inst) return res.status(404).json({ error: 'Instance not found' });
+  const srv = { host: inst.srv_host, port: inst.srv_port, username: inst.username, password: inst.password, ssh_key: inst.ssh_key };
+
+  // Inspect running container to get image/env/ports/volumes
+  let cfg;
+  try {
+    const r = await sshExec(srv, `docker inspect ${inst.container_name} 2>/dev/null`);
+    const arr = JSON.parse(r.output.trim());
+    cfg = arr[0];
+  } catch(e) { return res.status(500).json({ error: 'docker inspect fehlgeschlagen: ' + e.message }); }
+
+  if (!cfg) return res.status(404).json({ error: 'Container nicht gefunden oder läuft nicht' });
+
+  const image   = cfg.Config?.Image || '';
+  const envList = (cfg.Config?.Env || [])
+    .filter(e => !/^(PATH|HOME|HOSTNAME|TERM)=/.test(e))
+    .map(e => { const idx = e.indexOf('='); return { key: e.slice(0,idx), val: e.slice(idx+1) }; });
+  const portBindings = cfg.HostConfig?.PortBindings || {};
+  const ports = Object.entries(portBindings).flatMap(([k, v]) =>
+    (v||[]).map(b => ({ host: parseInt(b.HostPort||0), container: parseInt(k.split('/')[0]) }))
+  ).filter(p => p.host && p.container);
+  const mounts  = cfg.Mounts || [];
+  const volumes = mounts.map(m => ({ host: m.Source || m.Name || '', container: m.Destination || '' })).filter(v => v.host && v.container);
+  const restart = cfg.HostConfig?.RestartPolicy?.Name || 'unless-stopped';
+
+  const newName = (req.body.name || inst.name + '-copy').trim();
+  if (!newName) return res.status(400).json({ error: 'Name erforderlich' });
+
+  // Find free port
+  const dbPorts = db.prepare('SELECT n8n_port FROM instances').all().map(r => r.n8n_port);
+  let livePorts = [];
+  try { const r2 = await sshExec(srv, `docker ps --format "{{.Ports}}" 2>/dev/null`); livePorts = [...r2.output.matchAll(/(\d+)->/g)].map(m=>parseInt(m[1])); } catch(_){}
+  const used = new Set([...dbPorts, ...livePorts]);
+  const base = (ports[0]?.host || inst.n8n_port || 8080) + 1;
+  let assignedPort = base;
+  while (used.has(assignedPort)) assignedPort++;
+
+  const portArgs = ports.map((p,i) => `-p ${i===0 ? assignedPort : p.host}:${p.container}`);
+  const envArgs  = envList.map(e => `-e "${e.key}=${(e.val||'').replace(/"/g,'\\"')}"`);
+  const volArgs  = volumes.map(v => `-v ${v.host}:${v.container}`);
+  const containerName = `fleet_${newName.toLowerCase().replace(/[^a-z0-9]/g,'_')}_${Date.now()}`;
+  const id = uuidv4();
+  const cmd = ['docker run -d', `--name ${containerName}`, `--restart ${restart}`, ...portArgs, ...envArgs, ...volArgs, image].join(' ');
+
+  try {
+    await sshExec(srv, cmd);
+    const webhookUrl = ports[0] ? `http://${inst.srv_host}:${assignedPort}` : null;
+    db.prepare("INSERT INTO instances VALUES (?,?,?,?,?,?,?,strftime('%s','now'))")
+      .run(id, inst.server_id, newName, containerName, assignedPort, 'running', webhookUrl);
+    auditLog(req, 'instance_cloned', 'instance', newName, `Quelle: ${inst.name}, Port: ${assignedPort}`);
+    res.json({ id, name: newName, containerName, port: assignedPort, status: 'running', webhookUrl });
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 app.post('/api/instances/:id/status', async (req, res) => {

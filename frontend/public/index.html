@@ -6,6 +6,7 @@
 <title>NitradoMedia Fleet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css">
 <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
@@ -33,9 +34,17 @@
   [data-theme="light"] .stat-value,
   [data-theme="light"] .catalog-name { color: var(--text) !important; }
   [data-theme="light"] .instance-card { background: var(--surface); border-color: var(--border); }
-  [data-theme="light"] .instance-card.running { border-left-color: var(--green); }
+  [data-theme="light"] .instance-card.running { border-top-color: var(--green); }
   [data-theme="light"] .instance-card.stopped,
-  [data-theme="light"] .instance-card.exited { border-left-color: var(--red); }
+  [data-theme="light"] .instance-card.exited { border-top-color: rgba(110,127,141,0.4); }
+  [data-theme="light"] .inst-card-actions { background: rgba(0,0,0,0.04); }
+  [data-theme="light"] .inst-info-row code { background: rgba(0,0,0,0.06); }
+  [data-theme="light"] .dash-card { background: var(--surface); }
+  [data-theme="light"] .stat-card { background: var(--surface); }
+  [data-theme="light"] .srv-stat-card { background: var(--surface); }
+  [data-theme="light"] .srv-metric-bar { background: rgba(0,0,0,0.08); }
+  [data-theme="light"] .note-add-card { border-color: rgba(0,0,0,0.15); }
+  [data-theme="light"] .run-bar-wrap { background: rgba(0,0,0,0.08); }
   [data-theme="light"] .modal { background: var(--surface); }
   [data-theme="light"] .modal-header { background: var(--panel); border-color: var(--border); }
   [data-theme="light"] .stat-card { background: var(--surface); border-color: var(--border); }
@@ -64,7 +73,8 @@
   .nav-item { display: flex; align-items: center; gap: 10px; padding: 9px 16px; cursor: pointer; color: var(--text-dim); font-size: 12px; font-weight: 400; border-left: 2px solid transparent; transition: all 0.15s; user-select: none; }
   .nav-item:hover { color: var(--text); background: rgba(255,255,255,0.03); }
   .nav-item.active { color: var(--accent); border-left-color: var(--accent); background: rgba(232,99,10,0.05); }
-  .nav-icon { width: 16px; text-align: center; font-size: 13px; }
+  .nav-icon { width: 18px; text-align: center; font-size: 15px; display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .nav-icon i { font-size: 15px; line-height: 1; }
   .sidebar-footer { padding: 12px 16px; border-top: 1px solid var(--border); font-size: 10px; color: var(--text-muted); }
 
   /* Main */
@@ -109,8 +119,13 @@
   }
   @media (max-width: 480px) {
     .stats-row { grid-template-columns: 1fr 1fr; }
+    .dash-grid { grid-template-columns: 1fr; }
     .topbar-title { font-size: 12px; }
     .btn-sm { padding: 4px 8px; font-size: 10px; }
+  }
+  @media (max-width: 900px) {
+    .stats-row { grid-template-columns: repeat(3,1fr); }
+    .dash-grid { grid-template-columns: 1fr; }
   }
 
   /* Buttons */
@@ -129,12 +144,64 @@
   .btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
   /* Stats */
-  .stats-row { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin-bottom: 24px; }
-  .stat-card { background: var(--panel); border: 1px solid var(--border); border-radius: 6px; padding: 16px; }
-  .stat-label { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 8px; }
-  .stat-value { font-family: var(--sans); font-size: 28px; font-weight: 800; color: #fff; }
-  .stat-value.green { color: var(--green); }
-  .stat-value.accent { color: var(--accent); }
+  .stats-row { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:20px; }
+  .stat-card { background:var(--panel); border:1px solid var(--border); border-radius:8px; padding:16px 18px; display:flex; align-items:center; gap:14px; }
+  .stat-icon { width:40px; height:40px; border-radius:8px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .stat-icon i { font-size:20px; }
+  .stat-icon.total  { background:rgba(127,90,240,0.15); }
+  .stat-icon.run    { background:rgba(61,220,132,0.15); }
+  .stat-icon.stop   { background:rgba(255,71,87,0.12); }
+  .stat-icon.srv    { background:rgba(78,205,196,0.12); }
+  .stat-icon.req    { background:rgba(255,159,67,0.15); }
+  .stat-body { flex:1; min-width:0; }
+  .stat-label { font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:1.5px; margin-bottom:4px; }
+  .stat-value { font-family:var(--sans); font-size:26px; font-weight:800; color:var(--text); line-height:1; }
+  .stat-value.green  { color:var(--green); }
+  .stat-value.accent { color:var(--accent); }
+  .stat-value.red    { color:var(--red); }
+  .stat-value.blue   { color:var(--blue); }
+  .stat-sub { font-size:10px; color:var(--text-muted); margin-top:3px; }
+
+  /* Dashboard overview grid */
+  .dash-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:20px; }
+  .dash-card { background:var(--panel); border:1px solid var(--border); border-radius:8px; padding:16px 18px; }
+  .dash-card-title { font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:1.2px; margin-bottom:14px; display:flex; align-items:center; gap:8px; }
+  .run-bar-wrap { background:var(--bg); border-radius:4px; height:8px; overflow:hidden; margin:8px 0 4px; }
+  .run-bar { height:100%; border-radius:4px; background:var(--green); transition:width 0.4s ease; }
+  .dash-info-row { display:flex; align-items:center; justify-content:space-between; padding:7px 0; border-bottom:1px solid var(--border); font-size:12px; color:var(--text-dim); }
+  .dash-info-row:last-child { border-bottom:none; }
+  .dash-info-row strong { color:var(--text); }
+
+  /* Sticky Notes */
+  .notes-section-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; }
+  .notes-section-title { font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:1.2px; display:flex; align-items:center; gap:7px; }
+  .notes-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(210px,1fr)); gap:12px; }
+  .note-card { background:var(--panel); border:1px solid var(--border); border-left:3px solid var(--accent); border-radius:8px; padding:14px; min-height:152px; display:flex; flex-direction:column; transition:border-color 0.2s,box-shadow 0.2s; }
+  .note-card:hover { border-color:var(--border2); box-shadow:0 4px 18px rgba(0,0,0,0.25); }
+  .note-card.c-orange { border-left-color:#e8630a; }
+  .note-card.c-green  { border-left-color:#3ddc84; }
+  .note-card.c-blue   { border-left-color:#4ecdc4; }
+  .note-card.c-yellow { border-left-color:#ffd32a; }
+  .note-card.c-red    { border-left-color:#ff4757; }
+  .note-card.c-purple { border-left-color:#9b59b6; }
+  .note-title-input { font-weight:700; font-size:13px; margin-bottom:6px; outline:none; background:transparent; border:none; width:100%; font-family:var(--sans); color:var(--text); }
+  .note-title-input::placeholder { color:var(--text-muted); }
+  .note-content-input { flex:1; font-size:12px; outline:none; background:transparent; border:none; width:100%; resize:none; font-family:var(--mono); color:var(--text-dim); line-height:1.6; min-height:68px; }
+  .note-content-input::placeholder { color:var(--text-muted); }
+  .note-footer { display:flex; align-items:center; gap:5px; margin-top:10px; padding-top:8px; border-top:1px solid var(--border); }
+  .note-color-dot { width:11px; height:11px; border-radius:50%; cursor:pointer; border:2px solid transparent; transition:transform 0.1s,border-color 0.1s; flex-shrink:0; }
+  .note-color-dot:hover { transform:scale(1.4); }
+  .note-color-dot.active { border-color:var(--text-dim); transform:scale(1.2); }
+  .note-dot-o { background:#e8630a; } .note-dot-g { background:#3ddc84; }
+  .note-dot-b { background:#4ecdc4; } .note-dot-y { background:#ffd32a; }
+  .note-dot-r { background:#ff4757; } .note-dot-v { background:#9b59b6; }
+  .note-del { margin-left:auto; background:none; border:none; cursor:pointer; color:var(--text-muted); font-size:13px; padding:2px 3px; line-height:1; border-radius:3px; transition:color 0.15s,background 0.15s; }
+  .note-del:hover { color:var(--red); background:rgba(255,71,87,0.1); }
+  .note-ts { font-size:9px; color:var(--text-muted); }
+  .note-add-card { border:1px dashed var(--border2); border-radius:8px; min-height:152px; display:flex; flex-direction:column; align-items:center; justify-content:center; cursor:pointer; color:var(--text-muted); transition:border-color 0.2s,color 0.2s,background 0.2s; gap:7px; }
+  .note-add-card:hover { border-color:var(--accent); color:var(--accent); background:rgba(232,99,10,0.04); }
+  .note-add-card i { font-size:22px; }
+  .note-add-card small { font-size:11px; font-family:var(--mono); }
 
   /* Cards / Grid */
   .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
@@ -144,24 +211,69 @@
   .card-body { padding: 16px 18px; }
 
   /* Instances */
-  .instances-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px,1fr)); gap: 14px; }
-  .instance-card { background: var(--panel); border: 1px solid var(--border); border-radius: 6px; padding: 16px; position: relative; transition: border-color 0.2s; }
-  .instance-card:hover { border-color: var(--border2); }
-  .instance-card.running { border-left: 3px solid var(--green); }
-  .instance-card.stopped, .instance-card.exited { border-left: 3px solid var(--text-muted); }
-  .instance-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 12px; }
-  .instance-name { font-family: var(--sans); font-size: 15px; font-weight: 700; color: #fff; }
-  .instance-server { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
-  .badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 3px; font-size: 10px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; }
-  .badge.running { background: rgba(61,220,132,0.15); color: var(--green); }
-  .badge.stopped, .badge.exited { background: rgba(255,71,87,0.12); color: var(--red); }
-  .badge.unknown { background: rgba(110,127,141,0.2); color: var(--text-dim); }
-  .badge::before { content: '●'; font-size: 8px; }
-  .instance-meta { display: flex; flex-direction: column; gap: 5px; margin-bottom: 14px; }
-  .meta-row { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--text-dim); }
-  .meta-row a { color: var(--blue); text-decoration: none; }
-  .meta-row a:hover { text-decoration: underline; }
-  .instance-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+  /* Server Stats Bar */
+  .srv-stats-bar { display:flex; gap:12px; margin-bottom:18px; flex-wrap:wrap; }
+  .srv-stat-card { background:var(--panel); border:1px solid var(--border); border-radius:8px; padding:12px 16px; flex:1; min-width:220px; display:flex; flex-direction:column; gap:8px; transition:border-color 0.2s; }
+  .srv-stat-card:hover { border-color:var(--border2); }
+  .srv-stat-card.offline { opacity:0.55; border-style:dashed; }
+  .srv-stat-top { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+  .srv-stat-name { font-size:12px; font-weight:700; color:var(--text); display:flex; align-items:center; gap:7px; }
+  .srv-stat-dot { width:7px; height:7px; border-radius:50%; flex-shrink:0; }
+  .srv-stat-dot.online  { background:var(--green); box-shadow:0 0 5px rgba(61,220,132,0.6); }
+  .srv-stat-dot.offline { background:var(--text-muted); }
+  .srv-stat-host { font-size:10px; color:var(--text-muted); font-family:var(--mono); }
+  .srv-stat-metrics { display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; }
+  .srv-metric { display:flex; flex-direction:column; gap:3px; }
+  .srv-metric-label { font-size:9px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.8px; display:flex; justify-content:space-between; }
+  .srv-metric-label span { color:var(--text-dim); font-size:9px; }
+  .srv-metric-bar { height:4px; background:var(--bg); border-radius:2px; overflow:hidden; }
+  .srv-metric-fill { height:100%; border-radius:2px; transition:width 0.4s ease; }
+  .fill-cpu  { background:var(--accent); }
+  .fill-mem  { background:var(--blue); }
+  .fill-disk { background:var(--green); }
+  .fill-warn { background:var(--yellow) !important; }
+  .fill-crit { background:var(--red) !important; }
+  .srv-stats-loading { font-size:11px; color:var(--text-muted); padding:12px 0; display:flex; align-items:center; gap:8px; }
+
+  .inst-toolbar { display:flex; align-items:center; gap:8px; margin-bottom:20px; flex-wrap:wrap; }
+  .inst-toolbar .form-control { padding:7px 11px; }
+  .inst-toolbar input.inst-search { flex:1; min-width:150px; max-width:240px; }
+  .filter-row { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+  .filter-label { font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:1px; white-space:nowrap; }
+  .filter-sep { width:1px; height:18px; background:var(--border2); margin:0 2px; flex-shrink:0; }
+  .fchip { padding:4px 11px; border-radius:4px; font-size:11px; font-weight:600; border:1px solid var(--border2); color:var(--text-dim); cursor:pointer; background:transparent; font-family:var(--mono); transition:all 0.15s; white-space:nowrap; }
+  .fchip:hover { border-color:var(--text-dim); color:var(--text); }
+  .fchip.on { background:rgba(232,99,10,0.18); border-color:var(--accent); color:var(--accent); }
+  .fchip.on-run { background:rgba(61,220,132,0.15); border-color:var(--green); color:var(--green); }
+  .fchip.on-stop { background:rgba(255,71,87,0.12); border-color:var(--red); color:var(--red); }
+  .inst-group-header { display:flex; align-items:center; gap:12px; margin:22px 0 12px; }
+  .inst-group-line { flex:1; height:1px; background:var(--border); }
+  .inst-group-label { font-size:10px; font-weight:700; letter-spacing:1.5px; text-transform:uppercase; white-space:nowrap; padding:0 2px; }
+  .inst-group-label.running { color:var(--green); }
+  .inst-group-label.stopped { color:var(--text-muted); }
+  .instances-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(290px,1fr)); gap:12px; }
+  .instance-card { background:var(--panel); border:1px solid var(--border); border-radius:8px; overflow:hidden; display:flex; flex-direction:column; transition:border-color 0.2s,box-shadow 0.2s; }
+  .instance-card:hover { border-color:var(--border2); box-shadow:0 4px 18px rgba(0,0,0,0.22); }
+  .instance-card.running  { border-top:2px solid var(--green); }
+  .instance-card.stopped, .instance-card.exited { border-top:2px solid rgba(110,127,141,0.35); }
+  .inst-card-top  { padding:14px 14px 10px; display:flex; align-items:flex-start; justify-content:space-between; gap:8px; }
+  .inst-card-name { font-size:14px; font-weight:700; color:var(--text); line-height:1.3; word-break:break-word; }
+  .inst-card-sub  { font-size:11px; color:var(--text-muted); margin-top:4px; display:flex; align-items:center; gap:5px; flex-wrap:wrap; }
+  .inst-card-sub span.dot { color:var(--border2); }
+  .inst-card-badges { display:flex; align-items:center; gap:6px; flex-shrink:0; padding-top:2px; }
+  .inst-card-info { padding:0 14px 12px; display:flex; flex-direction:column; gap:5px; }
+  .inst-info-row  { display:flex; align-items:center; gap:7px; font-size:11px; color:var(--text-dim); min-width:0; overflow:hidden; }
+  .inst-info-row a { color:var(--blue); text-decoration:none; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; min-width:0; }
+  .inst-info-row a:hover { text-decoration:underline; }
+  .inst-info-row code { font-size:10px; background:rgba(255,255,255,0.06); padding:2px 6px; border-radius:3px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; min-width:0; display:block; }
+  .inst-card-actions { padding:9px 12px; border-top:1px solid var(--border); background:rgba(0,0,0,0.14); display:flex; align-items:center; gap:6px; flex-wrap:nowrap; margin-top:auto; }
+  .inst-card-actions .btn-sm { padding:4px 9px; font-size:11px; white-space:nowrap; }
+  .inst-act-spacer { flex:1; }
+  .badge { display:inline-flex; align-items:center; gap:4px; padding:3px 8px; border-radius:3px; font-size:10px; font-weight:700; letter-spacing:0.5px; text-transform:uppercase; }
+  .badge.running { background:rgba(61,220,132,0.15); color:var(--green); }
+  .badge.stopped, .badge.exited { background:rgba(255,71,87,0.12); color:var(--red); }
+  .badge.unknown { background:rgba(110,127,141,0.2); color:var(--text-dim); }
+  .badge::before { content:'●'; font-size:8px; }
 
   /* Servers */
   .server-list { display: flex; flex-direction: column; gap: 10px; }
@@ -226,6 +338,7 @@
   .toast.success { border-left-color: var(--green); }
   .toast.error   { border-left-color: var(--red); }
   @keyframes slideIn { from { transform: translateX(20px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+  @keyframes spin { to { transform: rotate(360deg); } }
 
   /* Cred box */
   .cred-box { background: var(--bg); border: 1px solid var(--border); border-radius: 4px; padding: 12px; font-size: 11px; line-height: 1.8; }
@@ -369,6 +482,32 @@
   </div>
 </div>
 
+<!-- ══ Modal: Clone ════════════════════════════════════════════ -->
+<div class="modal-overlay" id="modal-clone">
+  <div class="modal" style="width:440px">
+    <div class="modal-header">
+      <div class="modal-title"><i class="ti ti-copy"></i> Instanz klonen</div>
+      <button class="modal-close" onclick="closeModal('modal-clone')">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="clone-source-id">
+      <div class="form-group">
+        <label class="form-label">Name der Kopie</label>
+        <input class="form-control" id="clone-name" placeholder="my-instance-copy">
+      </div>
+      <div style="background:rgba(78,205,196,0.07);border:1px solid rgba(78,205,196,0.2);border-radius:6px;padding:11px 14px;margin-top:10px;font-size:11px;color:var(--text-dim);line-height:1.6">
+        <strong style="color:var(--blue)"><i class="ti ti-info-circle"></i> Info:</strong>
+        Die Kopie wird mit exakt den gleichen Einstellungen (Image, Umgebungsvariablen, Volumes, Restart-Policy) auf demselben Server deployt.
+        Der Port wird automatisch angepasst, um Konflikte zu vermeiden.
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-clone')">Abbrechen</button>
+      <button class="btn btn-primary" id="clone-submit-btn" onclick="submitClone()"><i class="ti ti-copy"></i> Klonen &amp; Deployen</button>
+    </div>
+  </div>
+</div>
+
 <!-- ══ Modal: Package ══════════════════════════════════════════ -->
 <div class="modal-overlay" id="modal-package">
   <div class="modal" style="width:560px">
@@ -400,20 +539,21 @@
 
 <nav class="sidebar">
   <div class="logo">
-    <div class="logo-mark">⬡ <span class="accent">NitradoMedia</span> <span class="dim">Fleet</span></div>
+    <div class="logo-mark"><i class="ti ti-hexagon" style="color:var(--accent);font-size:18px"></i> <span class="accent">NitradoMedia</span> <span class="dim">Fleet</span></div>
     <div class="logo-sub">Deployment Dashboard</div>
   </div>
   <div class="nav">
-    <div class="nav-item active" onclick="showPage('dashboard')"><span class="nav-icon">◈</span> Dashboard</div>
-    <div class="nav-item" onclick="showPage('instances')"><span class="nav-icon">⬡</span> Instances</div>
-    <div class="nav-item admin-only" onclick="showPage('servers')"><span class="nav-icon">⬢</span> Server</div>
-    <div class="nav-item" onclick="showPage('monitor')"><span class="nav-icon">▦</span> Monitor</div>
-    <div class="nav-item admin-only" onclick="showPage('katalog')"><span class="nav-icon">⊞</span> Image-Katalog</div>
-    <div class="nav-item admin-only" onclick="showPage('vorlagen')"><span class="nav-icon">◧</span> Vorlagen</div>
-    <div class="nav-item admin-only" onclick="showPage('settings')"><span class="nav-icon">◎</span> Einstellungen</div>
-    <div class="nav-item admin-only" onclick="showPage('users')"><span class="nav-icon">👤</span> Benutzer</div>
-    <div class="nav-item admin-only" onclick="showPage('packages')"><span class="nav-icon">📦</span> Pakete</div>
-    <div class="nav-item" onclick="showPage('requests')"><span class="nav-icon">🔔</span> Anfragen <span id="req-badge" style="display:none;background:var(--accent);color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;margin-left:auto"></span></div>
+    <div class="nav-item active" onclick="showPage('dashboard')"><span class="nav-icon"><i class="ti ti-layout-dashboard"></i></span> Dashboard</div>
+    <div class="nav-item" onclick="showPage('instances')"><span class="nav-icon"><i class="ti ti-server"></i></span> Instances</div>
+    <div class="nav-item admin-only" onclick="showPage('servers')"><span class="nav-icon"><i class="ti ti-server-2"></i></span> Server</div>
+    <div class="nav-item" onclick="showPage('monitor')"><span class="nav-icon"><i class="ti ti-activity"></i></span> Monitor</div>
+    <div class="nav-item admin-only" onclick="showPage('katalog')"><span class="nav-icon"><i class="ti ti-packages"></i></span> Image-Katalog</div>
+    <div class="nav-item admin-only" onclick="showPage('vorlagen')"><span class="nav-icon"><i class="ti ti-template"></i></span> Vorlagen</div>
+    <div class="nav-item admin-only" onclick="showPage('settings')"><span class="nav-icon"><i class="ti ti-settings"></i></span> Einstellungen</div>
+    <div class="nav-item admin-only" onclick="showPage('users')"><span class="nav-icon"><i class="ti ti-users"></i></span> Benutzer</div>
+    <div class="nav-item admin-only" onclick="showPage('packages')"><span class="nav-icon"><i class="ti ti-box"></i></span> Pakete</div>
+    <div class="nav-item" onclick="showPage('requests')"><span class="nav-icon"><i class="ti ti-bell"></i></span> Anfragen <span id="req-badge" style="display:none;background:var(--accent);color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;margin-left:auto"></span></div>
+    <div class="nav-item admin-only" onclick="showPage('logs')"><span class="nav-icon"><i class="ti ti-list-details"></i></span> Logs</div>
   </div>
   <div class="sidebar-footer">NitradoMedia Fleet v2.0<br><span id="footer-time"></span></div>
 </nav>
@@ -421,55 +561,136 @@
 
 <div class="main">
   <div class="topbar">
-    <button class="hamburger" onclick="toggleSidebar()" aria-label="Menü">☰</button>
+    <button class="hamburger" onclick="toggleSidebar()" aria-label="Menü"><i class="ti ti-menu-2"></i></button>
     <div class="topbar-title" id="page-title">Dashboard</div>
     <span id="topbar-user" style="font-size:11px;color:var(--text-muted)"></span>
-    <button class="btn btn-ghost btn-sm" id="theme-toggle" onclick="toggleTheme()" title="Dark/Light Mode" style="font-size:14px;padding:4px 8px">🌙</button>
-    <button class="btn btn-ghost btn-sm" onclick="refreshAll()">↻</button>
-    <button class="btn btn-primary btn-sm admin-only" onclick="openDeployModal()">+ Deploy</button>
-    <button class="btn btn-ghost btn-sm" onclick="logout()" style="color:var(--red);border-color:rgba(255,71,87,0.3)">⏻ Logout</button>
+    <button class="btn btn-ghost btn-sm" id="theme-toggle" onclick="toggleTheme()" title="Dark/Light Mode" style="font-size:16px;padding:4px 8px"><i class="ti ti-moon"></i></button>
+    <button class="btn btn-ghost btn-sm" onclick="refreshAll()" title="Aktualisieren"><i class="ti ti-refresh"></i></button>
+    <button class="btn btn-primary btn-sm admin-only" onclick="openDeployModal()"><i class="ti ti-rocket"></i> Deploy</button>
+    <button class="btn btn-ghost btn-sm" onclick="logout()" style="color:var(--red);border-color:rgba(255,71,87,0.3)" title="Abmelden"><i class="ti ti-power"></i></button>
   </div>
   <div class="content">
 
     <!-- Dashboard -->
     <div class="page active" id="page-dashboard">
+
+      <!-- Stat Cards -->
       <div class="stats-row">
-        <div class="stat-card"><div class="stat-label">Instances Total</div><div class="stat-value accent" id="stat-total">0</div></div>
-        <div class="stat-card"><div class="stat-label">Running</div><div class="stat-value green" id="stat-running">0</div></div>
-        <div class="stat-card"><div class="stat-label">Stopped</div><div class="stat-value" id="stat-stopped">0</div></div>
-        <div class="stat-card"><div class="stat-label">Server</div><div class="stat-value" id="stat-servers">0</div></div>
-      </div>
-      <div class="section-header">
-        <div class="section-title">Alle Instanzen</div>
-        <button class="btn btn-primary btn-sm admin-only" onclick="openDeployModal()">+ Deploy</button>
-      </div>
-      <div class="instances-grid" id="dashboard-instances">
-        <div class="empty-state"><div class="empty-icon">⬡</div><div class="empty-text">Keine Instanzen vorhanden</div><div class="empty-sub">Klicke auf „Deploy" um zu starten</div></div>
+        <div class="stat-card">
+          <div class="stat-icon total"><i class="ti ti-cube"></i></div>
+          <div class="stat-body">
+            <div class="stat-label">Instanzen</div>
+            <div class="stat-value accent" id="stat-total">0</div>
+            <div class="stat-sub" id="stat-sub-total">gesamt</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon run"><i class="ti ti-player-play"></i></div>
+          <div class="stat-body">
+            <div class="stat-label">Running</div>
+            <div class="stat-value green" id="stat-running">0</div>
+            <div class="stat-sub" id="stat-sub-run">aktiv</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon stop"><i class="ti ti-player-stop"></i></div>
+          <div class="stat-body">
+            <div class="stat-label">Stopped</div>
+            <div class="stat-value red" id="stat-stopped">0</div>
+            <div class="stat-sub">gestoppt</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon srv"><i class="ti ti-server"></i></div>
+          <div class="stat-body">
+            <div class="stat-label">Server</div>
+            <div class="stat-value blue" id="stat-servers">0</div>
+            <div class="stat-sub">verbunden</div>
+          </div>
+        </div>
+        <div class="stat-card admin-only">
+          <div class="stat-icon req"><i class="ti ti-bell"></i></div>
+          <div class="stat-body">
+            <div class="stat-label">Anfragen</div>
+            <div class="stat-value" id="stat-requests">0</div>
+            <div class="stat-sub">offen</div>
+          </div>
+        </div>
       </div>
 
-      <!-- Uptime Kuma Status Bar -->
-      <div class="card admin-only" style="margin-top:20px;padding:14px 16px">
-        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-          <img src="https://cdn.simpleicons.org/uptimekuma/ffffff" width="18" height="18" style="opacity:0.8;flex-shrink:0" onerror="this.style.display='none'">
-          <div style="font-size:12px;font-weight:600;color:var(--text)">Uptime Kuma</div>
-          <div id="uk-status-summary" style="display:flex;gap:8px;flex-wrap:wrap;flex:1;font-size:11px;color:var(--text-muted)">
-            <span>—</span>
-          </div>
-          <button class="btn btn-ghost btn-sm" onclick="fetchUkStatuses()" title="Status aktualisieren">⟳</button>
-          <button class="btn btn-primary btn-sm" id="uk-dash-btn" onclick="ukSyncFromDashboard()">🔄 Sync</button>
+      <!-- Overview + Uptime -->
+      <div class="dash-grid">
+        <div class="dash-card">
+          <div class="dash-card-title"><i class="ti ti-chart-bar"></i> Übersicht</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:2px">Auslastung</div>
+          <div class="run-bar-wrap"><div class="run-bar" id="dash-run-bar" style="width:0%"></div></div>
+          <div style="font-size:10px;color:var(--text-muted);margin-bottom:12px" id="dash-run-pct">0 % Running</div>
+          <div class="dash-info-row"><span>Instanzen gesamt</span><strong id="dov-total">—</strong></div>
+          <div class="dash-info-row"><span>Davon Running</span><strong id="dov-running" style="color:var(--green)">—</strong></div>
+          <div class="dash-info-row"><span>Davon Stopped</span><strong id="dov-stopped" style="color:var(--red)">—</strong></div>
+          <div class="dash-info-row"><span>Server verbunden</span><strong id="dov-servers" style="color:var(--blue)">—</strong></div>
+          <div class="dash-info-row admin-only"><span>Offene Anfragen</span><strong id="dov-reqs" style="color:var(--accent)">—</strong></div>
         </div>
-        <div style="font-size:10px;color:var(--text-muted);margin-top:4px" id="uk-dash-info"></div>
+
+        <div class="dash-card admin-only">
+          <div class="dash-card-title">
+            <img src="https://cdn.simpleicons.org/uptimekuma/ffffff" width="14" height="14" style="opacity:0.7" onerror="this.style.display='none'">
+            Uptime Kuma
+            <div style="margin-left:auto;display:flex;gap:6px">
+              <button class="btn btn-ghost btn-sm" onclick="fetchUkStatuses()" title="Aktualisieren">⟳</button>
+              <button class="btn btn-primary btn-sm" id="uk-dash-btn" onclick="ukSyncFromDashboard()"><i class="ti ti-refresh-dot"></i> Sync</button>
+            </div>
+          </div>
+          <div id="uk-status-summary" style="display:flex;gap:8px;flex-wrap:wrap;font-size:11px;color:var(--text-muted);margin-bottom:10px"><span>—</span></div>
+          <div style="font-size:10px;color:var(--text-muted)" id="uk-dash-info"></div>
+          <div id="uk-dash-monitors" style="display:flex;flex-direction:column;gap:6px;margin-top:10px"></div>
+        </div>
       </div>
+
+      <!-- Sticky Notes -->
+      <div class="notes-section-header">
+        <div class="notes-section-title"><i class="ti ti-notes"></i> Notizen</div>
+        <button class="btn btn-ghost btn-sm" onclick="addNote()">+ Neue Notiz</button>
+      </div>
+      <div class="notes-grid" id="notes-grid"></div>
+
     </div>
 
     <!-- Instances -->
     <div class="page" id="page-instances">
-      <div class="section-header">
-        <div class="section-title">Instanzen</div>
-        <button class="btn btn-primary btn-sm admin-only" onclick="openDeployModal()">+ Deploy</button>
+      <div id="srv-stats-bar" class="srv-stats-bar">
+        <div class="srv-stats-loading"><i class="ti ti-loader-2" style="animation:spin 1s linear infinite"></i> Server-Auslastung wird geladen…</div>
       </div>
-      <div class="instances-grid" id="instances-list">
-        <div class="empty-state"><div class="empty-icon">⬡</div><div class="empty-text">Keine Instanzen</div></div>
+      <div class="inst-toolbar">
+        <input class="form-control inst-search" id="inst-search" placeholder="Suchen…" oninput="renderInstancesList()">
+        <div class="filter-sep"></div>
+        <span class="filter-label">Gruppe</span>
+        <div class="filter-row" id="chips-group">
+          <button class="fchip" data-val="none" onclick="setInstFilter('group','none')">Keine</button>
+          <button class="fchip on" data-val="status" onclick="setInstFilter('group','status')">Status</button>
+          <button class="fchip" data-val="server" onclick="setInstFilter('group','server')">Server</button>
+          <button class="fchip" data-val="both" onclick="setInstFilter('group','both')">Status + Server</button>
+        </div>
+        <div class="filter-sep"></div>
+        <span class="filter-label">Status</span>
+        <div class="filter-row" id="chips-status">
+          <button class="fchip on" data-val="all" onclick="setInstFilter('status','all')">Alle</button>
+          <button class="fchip" data-val="running" onclick="setInstFilter('status','running')"><i class="ti ti-player-play"></i> Running</button>
+          <button class="fchip" data-val="stopped" onclick="setInstFilter('status','stopped')"><i class="ti ti-player-stop"></i> Stopped</button>
+        </div>
+        <div class="filter-sep"></div>
+        <span class="filter-label">Sortierung</span>
+        <select class="form-control" id="inst-sort" style="width:120px;padding:5px 8px;font-size:11px" onchange="renderInstancesList()">
+          <option value="name">Name</option>
+          <option value="port">Port</option>
+          <option value="status">Status</option>
+        </select>
+        <div style="margin-left:auto">
+          <button class="btn btn-primary btn-sm admin-only" onclick="openDeployModal()"><i class="ti ti-rocket"></i> Deploy</button>
+        </div>
+      </div>
+      <div id="instances-list">
+        <div class="empty-state"><div class="empty-icon"><i class="ti ti-server" style="font-size:32px"></i></div><div class="empty-text">Keine Instanzen</div></div>
       </div>
     </div>
 
@@ -648,6 +869,28 @@
       </div>
       <div class="grid-2" id="packages-grid">
         <div class="empty-state"><div class="empty-icon">📦</div><div class="empty-text">Keine Pakete</div></div>
+      </div>
+    </div>
+
+    <!-- Logs -->
+    <div class="page" id="page-logs">
+      <div class="section-header" style="margin-bottom:16px">
+        <div class="section-title">Aktivitäts-Log</div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <input class="form-control" id="log-search" placeholder="Suchen..." style="width:180px;padding:6px 10px" oninput="renderLogs()">
+          <select class="form-control" id="log-filter" style="width:150px;padding:6px 10px" onchange="renderLogs()">
+            <option value="">Alle Aktionen</option>
+            <option value="login">Logins</option>
+            <option value="instance">Instanzen</option>
+            <option value="user">Benutzer</option>
+            <option value="package">Pakete</option>
+            <option value="request">Anfragen</option>
+          </select>
+          <button class="btn btn-ghost btn-sm" onclick="loadLogs()">⟳ Aktualisieren</button>
+        </div>
+      </div>
+      <div id="logs-table-wrap" style="overflow-x:auto">
+        <div class="empty-state"><div class="empty-icon">📋</div><div class="empty-text">Logs werden geladen...</div></div>
       </div>
     </div>
 
@@ -955,13 +1198,14 @@ function toggleTheme() {
   if (next === 'light') document.documentElement.setAttribute('data-theme', 'light');
   else document.documentElement.removeAttribute('data-theme');
   localStorage.setItem('fleet-theme', next);
-  document.getElementById('theme-toggle').textContent = next === 'light' ? '☀️' : '🌙';
+  const btn = document.getElementById('theme-toggle');
+  if (btn) btn.innerHTML = next === 'light' ? '<i class="ti ti-sun"></i>' : '<i class="ti ti-moon"></i>';
 }
 
 function applyThemeIcon() {
   const isLight = document.documentElement.getAttribute('data-theme') === 'light';
   const btn = document.getElementById('theme-toggle');
-  if (btn) btn.textContent = isLight ? '☀️' : '🌙';
+  if (btn) btn.innerHTML = isLight ? '<i class="ti ti-sun"></i>' : '<i class="ti ti-moon"></i>';
 }
 
 // ── State ────────────────────────────────────────────────────
@@ -1011,8 +1255,13 @@ function showLoginError(msg) {
 
 function logout() {
   clearToken(); currentUser = null;
+  // clear all cached state so next user never sees previous user's data
+  servers = []; instances = []; templates = []; catalog = [];
+  ukStatuses = {}; requests = []; allUsers = []; allPkgs = [];
+  renderDashboard(); renderInstancesList();
   document.getElementById('login-overlay').classList.remove('hidden');
   document.getElementById('login-password').value = '';
+  showPage('dashboard');
 }
 
 function applyRole() {
@@ -1234,6 +1483,7 @@ async function fetchUkStatuses() {
 async function refreshAll() {
   await Promise.all([fetchServers(), fetchInstances(), fetchTemplates(), fetchCatalog()]);
   renderDashboard(); renderInstancesList(); renderServersList(); renderTemplates(); renderCatalog();
+  renderNotes();
   loadRequests();
   fetchUkStatuses();   // async, updates cards when ready
 }
@@ -1243,20 +1493,262 @@ async function fetchInstances() { try { instances = await api('GET','/api/instan
 async function fetchTemplates() { try { templates = await api('GET','/api/templates'); } catch {} }
 async function fetchCatalog()   { try { catalog   = await api('GET','/api/catalog');   } catch {} }
 
+// ── Server Resource Stats ─────────────────────────────────────
+async function fetchServerStats() {
+  const bar = document.getElementById('srv-stats-bar');
+  if (!bar) return;
+  bar.innerHTML = `<div class="srv-stats-loading"><i class="ti ti-loader-2" style="animation:spin 1s linear infinite"></i> Server-Auslastung wird geladen…</div>`;
+  try {
+    const stats = await api('GET', '/api/servers/stats');
+    renderServerStats(Array.isArray(stats) ? stats : []);
+  } catch { bar.innerHTML = `<div class="srv-stats-loading" style="color:var(--red)"><i class="ti ti-wifi-off"></i> Server-Stats nicht verfügbar</div>`; }
+}
+
+function renderServerStats(stats) {
+  const bar = document.getElementById('srv-stats-bar');
+  if (!bar) return;
+  if (!stats.length) { bar.innerHTML = ''; return; }
+
+  const fmt = (val, total, unit='MB') => {
+    if (val == null || total == null) return '—';
+    if (unit === 'GB') return `${(val/1024).toFixed(1)} / ${(total/1024).toFixed(1)} GB`;
+    return `${val} / ${total} MB`;
+  };
+  const pct = (used, total) => (total > 0 ? Math.round(used / total * 100) : 0);
+  const fillClass = p => p >= 90 ? 'fill-crit' : p >= 70 ? 'fill-warn' : '';
+
+  bar.innerHTML = stats.map(s => {
+    if (!s.online) return `
+      <div class="srv-stat-card offline">
+        <div class="srv-stat-top">
+          <div class="srv-stat-name"><div class="srv-stat-dot offline"></div>${esc(s.name)}</div>
+          <div class="srv-stat-host">${esc(s.host)}</div>
+        </div>
+        <div style="font-size:10px;color:var(--red)"><i class="ti ti-wifi-off"></i> Nicht erreichbar</div>
+      </div>`;
+
+    const cpuPct  = Math.round(s.cpu || 0);
+    const memPct  = pct(s.mem_used, s.mem_total);
+    const diskPct = s.disk_pct || 0;
+
+    const metric = (label, pctVal, fillExtra, valStr) => `
+      <div class="srv-metric">
+        <div class="srv-metric-label">${label}<span>${pctVal}%</span></div>
+        <div class="srv-metric-bar"><div class="srv-metric-fill ${fillExtra} ${fillClass(pctVal)}" style="width:${pctVal}%"></div></div>
+        <div style="font-size:9px;color:var(--text-muted);margin-top:1px">${valStr}</div>
+      </div>`;
+
+    return `
+      <div class="srv-stat-card">
+        <div class="srv-stat-top">
+          <div class="srv-stat-name"><div class="srv-stat-dot online"></div>${esc(s.name)}</div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <div class="srv-stat-host">${esc(s.host)}</div>
+            <button class="btn btn-ghost btn-sm" style="padding:2px 6px;font-size:10px" onclick="fetchServerStats()" title="Aktualisieren"><i class="ti ti-reload"></i></button>
+          </div>
+        </div>
+        <div class="srv-stat-metrics">
+          ${metric('CPU', cpuPct, 'fill-cpu', `${cpuPct}% Auslastung`)}
+          ${metric('RAM', memPct, 'fill-mem', fmt(s.mem_used, s.mem_total))}
+          ${metric('Disk', diskPct, 'fill-disk', fmt(s.disk_used, s.disk_total, 'GB'))}
+        </div>
+      </div>`;
+  }).join('');
+}
+
 // ── Render ───────────────────────────────────────────────────
 function renderDashboard() {
+  const total   = instances.length;
   const running = instances.filter(i => i.status==='running').length;
-  document.getElementById('stat-total').textContent   = instances.length;
+  const stopped = total - running;
+  const pct     = total ? Math.round(running / total * 100) : 0;
+  const openReqs = Array.isArray(requests) ? requests.filter(r => r.status==='pending').length : 0;
+
+  // Stat cards
+  document.getElementById('stat-total').textContent   = total;
   document.getElementById('stat-running').textContent = running;
-  document.getElementById('stat-stopped').textContent = instances.length - running;
+  document.getElementById('stat-stopped').textContent = stopped;
   document.getElementById('stat-servers').textContent = servers.length;
-  const el = document.getElementById('dashboard-instances');
-  el.innerHTML = instances.length ? instances.map(instanceCard).join('') : emptyState('⬡','Keine Instanzen','Klicke auf „Deploy" um zu starten');
+  const reqEl = document.getElementById('stat-requests');
+  if (reqEl) reqEl.textContent = openReqs;
+
+  // Sub labels
+  const subRun = document.getElementById('stat-sub-run');
+  if (subRun) subRun.textContent = total ? `${pct} % aktiv` : 'aktiv';
+  const subTot = document.getElementById('stat-sub-total');
+  if (subTot) subTot.textContent = servers.length ? `auf ${servers.length} Server` : 'gesamt';
+
+  // Overview card
+  const bar = document.getElementById('dash-run-bar');
+  const pctLbl = document.getElementById('dash-run-pct');
+  if (bar) bar.style.width = pct + '%';
+  if (pctLbl) pctLbl.textContent = `${pct} % Running`;
+  const set = (id, val) => { const e = document.getElementById(id); if (e) e.textContent = val; };
+  set('dov-total',   total);
+  set('dov-running', running);
+  set('dov-stopped', stopped);
+  set('dov-servers', servers.length);
+  set('dov-reqs',    openReqs || '—');
+
+  // UK monitor list in dash card
+  renderUkDashMonitors();
+
+  if (currentUser) applyRole(currentUser.role);
+}
+
+function renderUkDashMonitors() {
+  const el = document.getElementById('uk-dash-monitors');
+  if (!el) return;
+  const entries = Object.entries(ukStatuses);
+  if (!entries.length) { el.innerHTML = ''; return; }
+  const statusColor = s => s===1 ? 'var(--green)' : s===0 ? 'var(--red)' : s===2 ? '#ffa502' : 'var(--text-muted)';
+  const statusDot   = s => `<span style="color:${statusColor(s)};font-size:9px">●</span>`;
+  el.innerHTML = entries.slice(0,8).map(([name, v]) => `
+    <div style="display:flex;align-items:center;gap:8px;font-size:11px;color:var(--text-dim);padding:4px 0;border-bottom:1px solid var(--border)">
+      ${statusDot(v.status)}
+      <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(name)}</span>
+      <span style="color:var(--text-muted)">${v.ping != null ? v.ping+'ms' : '—'}</span>
+    </div>`).join('') +
+    (entries.length > 8 ? `<div style="font-size:10px;color:var(--text-muted);margin-top:6px">+${entries.length-8} weitere im Monitor</div>` : '');
+}
+
+// ── Sticky Notes ─────────────────────────────────────────────
+const NOTE_COLORS = ['c-orange','c-green','c-blue','c-yellow','c-red','c-purple'];
+const NOTE_DOTS   = ['o','g','b','y','r','v'];
+const NOTE_KEY    = 'fleet-notes';
+
+function loadNotes() {
+  try { return JSON.parse(localStorage.getItem(NOTE_KEY)) || []; } catch { return []; }
+}
+function saveNotes(notes) { localStorage.setItem(NOTE_KEY, JSON.stringify(notes)); }
+
+function renderNotes() {
+  const grid = document.getElementById('notes-grid');
+  if (!grid) return;
+  const notes = loadNotes();
+  grid.innerHTML = notes.map(n => `
+    <div class="note-card ${n.color || 'c-orange'}" id="note-${n.id}">
+      <input class="note-title-input" value="${esc(n.title||'')}" placeholder="Titel…"
+        oninput="updateNote('${n.id}','title',this.value)">
+      <textarea class="note-content-input" placeholder="Notiz hier eingeben…"
+        oninput="updateNote('${n.id}','content',this.value)">${esc(n.content||'')}</textarea>
+      <div class="note-footer">
+        ${NOTE_COLORS.map((c,i) => `<div class="note-color-dot note-dot-${NOTE_DOTS[i]}${n.color===c?' active':''}" onclick="updateNote('${n.id}','color','${c}')"></div>`).join('')}
+        <span class="note-ts">${n.updated ? new Date(n.updated).toLocaleDateString('de-DE') : ''}</span>
+        <button class="note-del" onclick="deleteNote('${n.id}')" title="Löschen"><i class="ti ti-trash"></i></button>
+      </div>
+    </div>`).join('') +
+  `<div class="note-add-card" onclick="addNote()"><i class="ti ti-plus"></i><small>Neue Notiz</small></div>`;
+}
+
+function addNote() {
+  const notes = loadNotes();
+  notes.unshift({ id: Date.now().toString(36)+Math.random().toString(36).slice(2,6), title:'', content:'', color:'c-orange', updated: new Date().toISOString() });
+  saveNotes(notes);
+  renderNotes();
+  setTimeout(() => document.querySelector('.note-title-input')?.focus(), 50);
+}
+
+function updateNote(id, field, val) {
+  const notes = loadNotes();
+  const n = notes.find(x => x.id === id);
+  if (!n) return;
+  n[field] = val;
+  n.updated = new Date().toISOString();
+  saveNotes(notes);
+  if (field === 'color') renderNotes();
+}
+
+function deleteNote(id) {
+  if (!confirm('Notiz löschen?')) return;
+  saveNotes(loadNotes().filter(n => n.id !== id));
+  renderNotes();
+}
+
+// ── Instance filter state ─────────────────────────────────────
+const instFilters = { group: 'status', status: 'all' };
+
+function setInstFilter(key, val) {
+  instFilters[key] = val;
+  // update chip highlights
+  const groupIds  = { none:'', status:'on', server:'on', both:'on' };
+  const statusIds = { all:'on', running:'on-run', stopped:'on-stop' };
+  document.querySelectorAll('#chips-group .fchip').forEach(c => {
+    c.className = 'fchip' + (c.dataset.val === val && key==='group' ? ' ' + (groupIds[val]||'on') : '');
+  });
+  document.querySelectorAll('#chips-status .fchip').forEach(c => {
+    c.className = 'fchip' + (c.dataset.val === val && key==='status' ? ' ' + (statusIds[val]||'on') : '');
+  });
+  renderInstancesList();
 }
 
 function renderInstancesList() {
   const el = document.getElementById('instances-list');
-  el.innerHTML = instances.length ? instances.map(instanceCard).join('') : emptyState('⬡','Keine Instanzen');
+  if (!el) return;
+  if (!instances.length) { el.innerHTML = emptyState('ti ti-server','Keine Instanzen','Noch keine Instanzen angelegt'); return; }
+
+  const search     = (document.getElementById('inst-search')?.value || '').toLowerCase();
+  const sortBy     = document.getElementById('inst-sort')?.value || 'name';
+  const groupBy    = instFilters.group;
+  const statusFilt = instFilters.status;
+
+  let filtered = instances.filter(i => {
+    if (statusFilt === 'running' && i.status !== 'running') return false;
+    if (statusFilt === 'stopped' && i.status === 'running') return false;
+    if (search && !`${i.name} ${i.server_name||i.server_host} ${i.n8n_port} ${i.container_name}`.toLowerCase().includes(search)) return false;
+    return true;
+  });
+
+  const sortFn = {
+    name:   (a,b) => a.name.localeCompare(b.name),
+    port:   (a,b) => (a.n8n_port||0) - (b.n8n_port||0),
+    status: (a,b) => { const r=s=>s==='running'?0:1; return r(a.status)-r(b.status) || a.name.localeCompare(b.name); }
+  };
+  filtered.sort(sortFn[sortBy] || sortFn.name);
+
+  if (!filtered.length) { el.innerHTML = emptyState('ti ti-search','Keine Treffer','Suchbegriff oder Filter anpassen'); return; }
+
+  const grid  = items => '<div class="instances-grid">' + items.map(instanceCard).join('') + '</div>';
+  const byStatus = items => {
+    const run  = items.filter(i => i.status==='running');
+    const stop = items.filter(i => i.status!=='running');
+    let h = '';
+    if (run.length)  h += instGroupHeader('running', `<i class="ti ti-player-play"></i> Running — ${run.length}`) + grid(run);
+    if (stop.length) h += instGroupHeader('stopped', `<i class="ti ti-player-stop"></i> Gestoppt — ${stop.length}`) + grid(stop);
+    return h;
+  };
+  const byServer = items => {
+    const map = new Map();
+    items.forEach(i => {
+      const k = i.server_id || i.server_host;
+      if (!map.has(k)) map.set(k, { label: i.server_name || i.server_host, items: [] });
+      map.get(k).items.push(i);
+    });
+    return [...map.values()].map(g =>
+      instGroupHeader('server', `<i class="ti ti-server-2"></i> ${esc(g.label)} — ${g.items.length}`) + grid(g.items)
+    ).join('');
+  };
+
+  let html = '';
+  if      (groupBy === 'none')   html = grid(filtered);
+  else if (groupBy === 'status') html = byStatus(filtered);
+  else if (groupBy === 'server') html = byServer(filtered);
+  else if (groupBy === 'both') {
+    // group by server, sub-group by status
+    const srvMap = new Map();
+    filtered.forEach(i => {
+      const k = i.server_id || i.server_host;
+      if (!srvMap.has(k)) srvMap.set(k, { label: i.server_name || i.server_host, items: [] });
+      srvMap.get(k).items.push(i);
+    });
+    srvMap.forEach(g => {
+      html += instGroupHeader('server', `<i class="ti ti-server-2"></i> ${esc(g.label)} — ${g.items.length}`);
+      html += byStatus(g.items);
+    });
+  }
+
+  el.innerHTML = html;
+  if (currentUser) applyRole(currentUser.role);
 }
 
 function renderServersList() {
@@ -1555,28 +2047,45 @@ function ukBadge(name) {
 function instanceCard(i) {
   const sc = i.status==='running' ? 'running' : (i.status==='stopped' ? 'stopped' : 'exited');
   const url = i.webhook_url || `http://${i.server_host}:${i.n8n_port}`;
+  const startBtn = i.status!=='running'
+    ? `<button class="btn btn-green btn-sm" onclick="instanceAction('${i.id}','start')" title="Starten"><i class="ti ti-player-play"></i> Start</button>` : '';
+  const stopBtn = i.status==='running'
+    ? `<button class="btn btn-ghost btn-sm" onclick="instanceAction('${i.id}','stop')" title="Stoppen"><i class="ti ti-player-stop"></i> Stop</button>` : '';
   return `
   <div class="instance-card ${sc}" id="icard-${i.id}">
-    <div class="instance-header">
-      <div style="display:flex;align-items:center;flex-wrap:wrap;gap:4px">
-        <div><div class="instance-name">⬡ ${esc(i.name)}</div><div class="instance-server">▸ ${esc(i.server_name||i.server_host)}</div></div>
-        ${ukBadge(i.name)}
+    <div class="inst-card-top">
+      <div style="min-width:0;flex:1">
+        <div class="inst-card-name"><i class="ti ti-cube" style="font-size:12px;opacity:0.5;margin-right:4px"></i>${esc(i.name)}</div>
+        <div class="inst-card-sub">
+          <i class="ti ti-server-2" style="font-size:11px"></i>
+          <span>${esc(i.server_name||i.server_host)}</span>
+          <span class="dot">·</span>
+          <span>:${i.n8n_port}</span>
+        </div>
       </div>
-      <span class="badge ${sc}">${i.status||'unknown'}</span>
+      <div class="inst-card-badges">
+        ${ukBadge(i.name)}
+        <span class="badge ${sc}">${i.status||'unknown'}</span>
+      </div>
     </div>
-    <div class="instance-meta">
-      <div class="meta-row">🔗 <a href="${url}" target="_blank">${url}</a></div>
-      <div class="meta-row">📦 <code>${esc(i.container_name)}</code></div>
-      <div class="meta-row">🔌 Port ${i.n8n_port}</div>
+    <div class="inst-card-info">
+      <div class="inst-info-row"><i class="ti ti-link" style="flex-shrink:0"></i><a href="${url}" target="_blank" title="${url}">${url}</a></div>
+      <div class="inst-info-row"><i class="ti ti-container" style="flex-shrink:0"></i><code title="${esc(i.container_name)}">${esc(i.container_name)}</code></div>
     </div>
-    <div class="instance-actions">
-      ${i.status!=='running' ? `<button class="btn btn-green btn-sm" onclick="instanceAction('${i.id}','start')">▶ Start</button>` : ''}
-      ${i.status==='running'  ? `<button class="btn btn-ghost btn-sm" onclick="instanceAction('${i.id}','stop')">⏹ Stop</button>` : ''}
-      <button class="btn btn-ghost btn-sm" onclick="instanceAction('${i.id}','restart')">↻ Restart</button>
-      <button class="btn btn-ghost btn-sm" onclick="refreshInstanceStatus('${i.id}')">⟳ Status</button>
-      <button class="btn btn-danger btn-sm" onclick="instanceAction('${i.id}','remove')">✕</button>
+    <div class="inst-card-actions">
+      ${startBtn}${stopBtn}
+      <button class="btn btn-ghost btn-sm" onclick="instanceAction('${i.id}','restart')" title="Neu starten"><i class="ti ti-refresh"></i> Restart</button>
+      <div class="inst-act-spacer"></div>
+      <button class="btn btn-ghost btn-sm" onclick="window.open('${url}','_blank')" title="Im Browser öffnen"><i class="ti ti-external-link"></i></button>
+      <button class="btn btn-ghost btn-sm" onclick="refreshInstanceStatus('${i.id}')" title="Status prüfen"><i class="ti ti-reload"></i></button>
+      <button class="btn btn-ghost btn-sm admin-only" onclick="openCloneModal('${i.id}')" title="Klonen"><i class="ti ti-copy"></i></button>
+      <button class="btn btn-danger btn-sm admin-only" onclick="instanceAction('${i.id}','remove')" title="Entfernen"><i class="ti ti-trash"></i></button>
     </div>
   </div>`;
+}
+
+function instGroupHeader(cls, labelHtml) {
+  return `<div class="inst-group-header"><div class="inst-group-line"></div><span class="inst-group-label ${cls}">${labelHtml}</span><div class="inst-group-line"></div></div>`;
 }
 
 function emptyState(icon, text, sub='') {
@@ -1797,7 +2306,7 @@ async function deletePackage(id) {
 }
 
 // ── Navigation ───────────────────────────────────────────────
-const PAGE_TITLES = { dashboard:'Dashboard', instances:'Instanzen', servers:'Server', monitor:'Live Monitor', katalog:'Image-Katalog', vorlagen:'Vorlagen', settings:'Einstellungen', users:'Benutzer', packages:'Pakete', requests:'Anfragen' };
+const PAGE_TITLES = { dashboard:'Dashboard', instances:'Instanzen', servers:'Server', monitor:'Live Monitor', katalog:'Image-Katalog', vorlagen:'Vorlagen', settings:'Einstellungen', users:'Benutzer', packages:'Pakete', requests:'Anfragen', logs:'Aktivitäts-Log' };
 
 function showPage(name) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
@@ -1815,7 +2324,9 @@ function showPage(name) {
   if (name === 'packages') loadPackages();
   if (name === 'requests') loadRequests();
   if (name === 'settings') ukLoadSettings();
-  if (name === 'dashboard' || name === 'instances') fetchUkStatuses();
+  if (name === 'logs') loadLogs();
+  if (name === 'dashboard') { fetchUkStatuses(); renderNotes(); }
+  if (name === 'instances') { fetchUkStatuses(); fetchServerStats(); }
   // close sidebar on mobile after navigation
   if (window.innerWidth <= 768) closeSidebar();
 }
@@ -2123,6 +2634,32 @@ async function refreshInstanceStatus(id) {
   catch(e) { toast('Fehler', 'error'); }
 }
 
+// ── Clone ─────────────────────────────────────────────────────
+function openCloneModal(id) {
+  const inst = instances.find(i => i.id === id);
+  if (!inst) return;
+  document.getElementById('clone-source-id').value = id;
+  document.getElementById('clone-name').value = inst.name + '-copy';
+  document.getElementById('modal-clone').classList.add('open');
+  setTimeout(() => { const inp = document.getElementById('clone-name'); inp.focus(); inp.select(); }, 100);
+}
+
+async function submitClone() {
+  const id   = document.getElementById('clone-source-id').value;
+  const name = document.getElementById('clone-name').value.trim();
+  if (!name) { toast('Bitte einen Namen eingeben', 'error'); return; }
+  const btn = document.getElementById('clone-submit-btn');
+  btn.disabled = true; btn.innerHTML = '<i class="ti ti-loader-2"></i> Klone…';
+  try {
+    const r = await api('POST', `/api/instances/${id}/clone`, { name });
+    if (r.error) { toast('Fehler: ' + r.error, 'error'); return; }
+    toast(`Kopie "${r.name}" deployt — Port ${r.port}`);
+    closeModal('modal-clone');
+    await refreshAll();
+  } catch(e) { toast('Fehler: ' + e.message, 'error'); }
+  finally { btn.disabled = false; btn.innerHTML = '<i class="ti ti-copy"></i> Klonen &amp; Deployen'; }
+}
+
 // ── Stats / Monitor ──────────────────────────────────────────
 async function fetchStats() {
   const el = document.getElementById('monitor-grid');
@@ -2268,6 +2805,85 @@ document.querySelectorAll('.modal-overlay').forEach(o => {
   o.addEventListener('click', e => { if (e.target === o) o.classList.remove('open'); });
 });
 
+// ── Audit Logs ───────────────────────────────────────────────
+let allLogs = [];
+
+const LOG_META = {
+  login:             { icon:'🔑', color:'#4ecdc4', label:'Login' },
+  login_failed:      { icon:'⛔', color:'#ff4757', label:'Login fehlgeschlagen' },
+  user_created:      { icon:'👤', color:'#3ddc84', label:'Benutzer erstellt' },
+  user_deleted:      { icon:'🗑', color:'#ff4757', label:'Benutzer gelöscht' },
+  instance_deployed: { icon:'🚀', color:'#3ddc84', label:'Instanz deployed' },
+  instance_removed:  { icon:'🗑', color:'#ff4757', label:'Instanz gelöscht' },
+  instance_start:    { icon:'▶',  color:'#3ddc84', label:'Instanz gestartet' },
+  instance_stop:     { icon:'⏹', color:'#ffa502', label:'Instanz gestoppt' },
+  instance_restart:  { icon:'↻',  color:'#4ecdc4', label:'Instanz neugestartet' },
+  package_created:   { icon:'📦', color:'#3ddc84', label:'Paket erstellt' },
+  package_deleted:   { icon:'📦', color:'#ff4757', label:'Paket gelöscht' },
+  request_approved:  { icon:'✅', color:'#3ddc84', label:'Anfrage freigegeben' },
+  request_rejected:  { icon:'✗',  color:'#ff4757', label:'Anfrage abgelehnt' },
+};
+
+async function loadLogs() {
+  const wrap = document.getElementById('logs-table-wrap');
+  if (wrap) wrap.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text-muted)">⟳ Lade Logs...</div>';
+  try { const d = await api('GET', '/api/logs?limit=300'); allLogs = Array.isArray(d) ? d : []; } catch { allLogs = []; }
+  renderLogs();
+}
+
+function renderLogs() {
+  const wrap = document.getElementById('logs-table-wrap');
+  if (!wrap) return;
+  const search = (document.getElementById('log-search')?.value || '').toLowerCase();
+  const filter = document.getElementById('log-filter')?.value || '';
+
+  const filtered = allLogs.filter(l => {
+    if (filter && !l.action.includes(filter)) return false;
+    if (search) {
+      const hay = [l.action, l.username, l.target_name, l.details, l.ip].join(' ').toLowerCase();
+      if (!hay.includes(search)) return false;
+    }
+    return true;
+  });
+
+  if (!filtered.length) {
+    wrap.innerHTML = '<div class="empty-state"><div class="empty-icon">📋</div><div class="empty-text">Keine Einträge gefunden</div></div>';
+    return;
+  }
+
+  const rows = filtered.map(l => {
+    const m = LOG_META[l.action] || { icon:'•', color:'var(--text-muted)', label: l.action };
+    const ts = new Date(l.created_at).toLocaleString('de-DE', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit', second:'2-digit' });
+    return `<tr style="border-bottom:1px solid var(--border)">
+      <td style="padding:8px 12px;white-space:nowrap;font-size:11px;color:var(--text-muted)">${ts}</td>
+      <td style="padding:8px 12px">
+        <span style="color:${m.color};font-size:13px">${m.icon}</span>
+        <span style="font-size:11px;color:${m.color};margin-left:5px">${m.label}</span>
+      </td>
+      <td style="padding:8px 12px;font-size:12px;font-weight:600;color:var(--text)">${esc(l.username || '—')}</td>
+      <td style="padding:8px 12px;font-size:11px;color:var(--text-dim)">${l.target_type ? `<span style="color:var(--text-muted);font-size:10px">${esc(l.target_type)}</span> ` : ''}${esc(l.target_name || '—')}</td>
+      <td style="padding:8px 12px;font-size:11px;color:var(--text-dim);max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(l.details||'')}">${esc(l.details || '')}</td>
+      <td style="padding:8px 12px;font-size:10px;color:var(--text-muted);white-space:nowrap">${esc(l.ip || '')}</td>
+    </tr>`;
+  }).join('');
+
+  wrap.innerHTML = `
+    <div style="font-size:11px;color:var(--text-muted);margin-bottom:10px">${filtered.length} von ${allLogs.length} Einträgen</div>
+    <table style="width:100%;border-collapse:collapse;background:var(--surface);border:1px solid var(--border);border-radius:6px;overflow:hidden">
+      <thead>
+        <tr style="background:var(--panel);border-bottom:1px solid var(--border)">
+          <th style="padding:8px 12px;text-align:left;font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;white-space:nowrap">Zeit</th>
+          <th style="padding:8px 12px;text-align:left;font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px">Aktion</th>
+          <th style="padding:8px 12px;text-align:left;font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px">Benutzer</th>
+          <th style="padding:8px 12px;text-align:left;font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px">Ziel</th>
+          <th style="padding:8px 12px;text-align:left;font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px">Details</th>
+          <th style="padding:8px 12px;text-align:left;font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px">IP</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
 // ── Uptime Kuma Detail Modal ──────────────────────────────────
 async function openUkDetail(name) {
   const modal = document.getElementById('uk-detail-modal');
@@ -2340,6 +2956,11 @@ function updateRequestBadge() {
   const badge = document.getElementById('req-badge');
   if (pending > 0) { badge.textContent = pending; badge.style.display = ''; }
   else { badge.style.display = 'none'; }
+  // also update dashboard stat card
+  const statEl = document.getElementById('stat-requests');
+  if (statEl) statEl.textContent = pending;
+  const dovEl = document.getElementById('dov-reqs');
+  if (dovEl) dovEl.textContent = pending || '—';
 }
 
 function renderRequests() {
