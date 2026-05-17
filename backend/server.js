@@ -417,6 +417,14 @@ app.put('/api/packages/:id/instances', requireAdmin, async (req, res) => {
   res.json({ ok: true });
 });
 
+app.get('/api/packages/:id/users', requireAdmin, async (req, res) => {
+  const { rows } = await pgPool.query(
+    'SELECT u.id, u.username, u.email FROM users u JOIN user_packages up ON up.user_id=u.id WHERE up.package_id=$1 ORDER BY u.username',
+    [req.params.id]
+  );
+  res.json(rows);
+});
+
 // ─── APP SETTINGS ────────────────────────────────────────────
 app.get('/api/app-settings', requireAdmin, (req, res) => {
   const rows = db.prepare('SELECT key, value FROM app_settings').all();
@@ -721,7 +729,11 @@ app.post('/api/servers/:id/test', async (req, res) => {
 
 // ─── NEXT-PORT ───────────────────────────────────────────────
 app.get('/api/next-port', (req, res) => {
-  const used = new Set(db.prepare('SELECT n8n_port FROM instances').all().map(r => r.n8n_port));
+  const serverId = req.query.server;
+  const rows = serverId
+    ? db.prepare('SELECT n8n_port FROM instances WHERE server_id=?').all(serverId)
+    : db.prepare('SELECT n8n_port FROM instances').all();
+  const used = new Set(rows.map(r => r.n8n_port));
   let port = parseInt(req.query.from) || 5678;
   while (used.has(port)) port++;
   res.json({ port });
@@ -842,7 +854,7 @@ app.post('/api/servers/:serverId/deploy', async (req, res) => {
   const { name, image, ports = [], env = [], volumes = [], restart = 'unless-stopped' } = req.body;
   if (!name || !image) return res.status(400).json({ error: 'name and image required' });
 
-  const dbPorts = db.prepare('SELECT n8n_port FROM instances').all().map(r => r.n8n_port);
+  const dbPorts = db.prepare('SELECT n8n_port FROM instances WHERE server_id=?').all(srv.id).map(r => r.n8n_port);
   let livePortsOutput = '';
   try { livePortsOutput = (await sshExec(srv, `docker ps --format "{{.Ports}}" 2>/dev/null`)).output; } catch(_) {}
   const livePorts = [...livePortsOutput.matchAll(/(\d+)->/g)].map(m => parseInt(m[1]));
@@ -970,7 +982,11 @@ app.post('/api/templates/:templateId/deploy/:serverId', async (req, res) => {
   const config = JSON.parse(t.config);
 
   if (t.type === 'image') {
-    const used = new Set(db.prepare('SELECT n8n_port FROM instances').all().map(r => r.n8n_port));
+    const dbPorts = db.prepare('SELECT n8n_port FROM instances WHERE server_id=?').all(srv.id).map(r => r.n8n_port);
+    let liveTplOutput = '';
+    try { liveTplOutput = (await sshExec(srv, `docker ps --format "{{.Ports}}" 2>/dev/null`)).output; } catch(_) {}
+    const liveTplPorts = [...liveTplOutput.matchAll(/(\d+)->/g)].map(m => parseInt(m[1]));
+    const used = new Set([...dbPorts, ...liveTplPorts]);
     const base = config.ports?.[0]?.host || 8080;
     let assignedPort = base;
     while (used.has(assignedPort)) assignedPort++;
@@ -1078,7 +1094,7 @@ app.post('/api/instances/:id/clone', requireAdmin, async (req, res) => {
   if (!newName) return res.status(400).json({ error: 'Name erforderlich' });
 
   // Find free port
-  const dbPorts = db.prepare('SELECT n8n_port FROM instances').all().map(r => r.n8n_port);
+  const dbPorts = db.prepare('SELECT n8n_port FROM instances WHERE server_id=?').all(inst.server_id).map(r => r.n8n_port);
   let livePorts = [];
   try { const r2 = await sshExec(srv, `docker ps --format "{{.Ports}}" 2>/dev/null`); livePorts = [...r2.output.matchAll(/(\d+)->/g)].map(m=>parseInt(m[1])); } catch(_){}
   const used = new Set([...dbPorts, ...livePorts]);
@@ -1209,7 +1225,7 @@ app.get('/api/users/:id/packages', requireAdmin, async (req, res) => {
 
 app.put('/api/instance-requests/:id/approve', requireAdmin, async (req, res) => {
   const { server_id, name, package_id } = req.body;
-  if (!server_id || !name || !package_id) return res.status(400).json({ error: 'server_id, name, package_id erforderlich' });
+  if (!server_id || !name) return res.status(400).json({ error: 'server_id und name erforderlich' });
   const { rows: reqRows } = await pgPool.query('SELECT * FROM instance_requests WHERE id=$1', [req.params.id]);
   if (!reqRows.length) return res.status(404).json({ error: 'Anfrage nicht gefunden' });
   const request = reqRows[0];
@@ -1221,7 +1237,7 @@ app.put('/api/instance-requests/:id/approve', requireAdmin, async (req, res) => 
   const env     = catalogEntry ? JSON.parse(catalogEntry.env     || '[]') : [];
   const volumes = catalogEntry ? JSON.parse(catalogEntry.volumes || '[]') : [];
 
-  const dbPorts = db.prepare('SELECT n8n_port FROM instances').all().map(r => r.n8n_port);
+  const dbPorts = db.prepare('SELECT n8n_port FROM instances WHERE server_id=?').all(srv.id).map(r => r.n8n_port);
   let livePortsOutput = '';
   try { livePortsOutput = (await sshExec(srv, `docker ps --format "{{.Ports}}" 2>/dev/null`)).output; } catch(_) {}
   const livePorts = [...livePortsOutput.matchAll(/(\d+)->/g)].map(m => parseInt(m[1]));
@@ -1243,10 +1259,12 @@ app.put('/api/instance-requests/:id/approve', requireAdmin, async (req, res) => 
     const webhookUrl = ports[0] ? `http://${srv.host}:${assignedPort}` : null;
     db.prepare("INSERT INTO instances VALUES (?,?,?,?,?,?,?,strftime('%s','now'))")
       .run(instanceId, srv.id, name, containerName, assignedPort, 'running', webhookUrl);
-    await pgPool.query(
-      'INSERT INTO package_instances (package_id,instance_id) VALUES ($1,$2) ON CONFLICT DO NOTHING',
-      [package_id, instanceId]
-    );
+    if (package_id) {
+      await pgPool.query(
+        'INSERT INTO package_instances (package_id,instance_id) VALUES ($1,$2) ON CONFLICT DO NOTHING',
+        [package_id, instanceId]
+      );
+    }
     await pgPool.query(
       'UPDATE instance_requests SET status=$1,resolved_at=NOW(),resolved_by=$2 WHERE id=$3',
       ['approved', req.user.id, req.params.id]

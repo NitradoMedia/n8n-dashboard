@@ -53,6 +53,8 @@
   [data-theme="light"] .template-card,
   [data-theme="light"] .catalog-card,
   [data-theme="light"] .pkg-card { background: var(--surface); border-color: var(--border); }
+  [data-theme="light"] .pkg-stats-row { background: #f1f3f5; }
+  [data-theme="light"] .pkg-detail-row, [data-theme="light"] .pkg-detail-inst { background: #f1f3f5; }
   [data-theme="light"] .nav-item.active { background: rgba(232,99,10,0.08); }
   [data-theme="light"] code { background: var(--panel); color: var(--text-dim); }
   [data-theme="light"] .btn-ghost { border-color: var(--border2); color: var(--text-dim); }
@@ -64,11 +66,13 @@
 
   /* Sidebar */
   .sidebar { width: 210px; min-height: 100vh; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; flex-shrink: 0; transition: transform 0.25s ease; z-index: 500; }
-  .logo { padding: 12px 14px 10px; border-bottom: 1px solid var(--border); overflow: hidden; }
-  .logo-mark { font-family: var(--sans); font-size: 12px; font-weight: 800; color: #fff; letter-spacing: -0.3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.3; }
+  .logo { padding: 12px 14px 10px; border-bottom: 1px solid var(--border); }
+  .logo-mark { font-family: var(--sans); font-size: 13px; font-weight: 800; color: #fff; letter-spacing: -0.2px; line-height: 1.3; display: flex; align-items: center; gap: 7px; }
+  .logo-mark .logo-icon { color: var(--accent); font-size: 17px; flex-shrink: 0; line-height: 1; }
+  .logo-mark .logo-text { display: flex; align-items: baseline; gap: 5px; min-width: 0; }
   .logo-mark .accent { color: var(--accent); }
-  .logo-mark .dim { color: var(--text-dim); font-weight: 600; font-size: 11px; }
-  .logo-sub { font-size: 9px; color: var(--text-muted); margin-top: 2px; letter-spacing: 1.5px; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .logo-mark .dim { color: var(--text-dim); font-weight: 600; font-size: 12px; }
+  .logo-sub { font-size: 9px; color: var(--text-muted); margin-top: 3px; letter-spacing: 1.5px; text-transform: uppercase; padding-left: 24px; }
   .nav { flex: 1; padding: 12px 0; }
   .nav-item { display: flex; align-items: center; gap: 10px; padding: 9px 16px; cursor: pointer; color: var(--text-dim); font-size: 12px; font-weight: 400; border-left: 2px solid transparent; transition: all 0.15s; user-select: none; }
   .nav-item:hover { color: var(--text); background: rgba(255,255,255,0.03); }
@@ -91,41 +95,343 @@
   .sidebar-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 499; backdrop-filter: blur(2px); }
   .sidebar-overlay.open { display: block; }
 
+  /* ── Tablet ─────────────────────────────────────────── */
+  @media (max-width: 900px) {
+    .stats-row { grid-template-columns: repeat(3,1fr) !important; }
+    .dash-grid { grid-template-columns: 1fr !important; }
+  }
+
+  /* ── Toggle switch (settings) ────────────────────────── */
+  .toggle-sw { width:44px; height:24px; border-radius:12px; background:var(--border2); border:none; cursor:pointer; position:relative; transition:background 0.22s; flex-shrink:0; padding:0; }
+  .toggle-sw.on { background:var(--accent); }
+  .toggle-sw::after { content:''; position:absolute; width:18px; height:18px; border-radius:50%; background:#fff; top:3px; left:3px; transition:transform 0.22s; box-shadow:0 1px 4px rgba(0,0,0,0.3); }
+  .toggle-sw.on::after { transform:translateX(20px); }
+  .toggle-row { display:flex; align-items:center; justify-content:space-between; padding:12px 0; border-bottom:1px solid var(--border); }
+  .toggle-row:last-child { border-bottom:none; }
+  .toggle-info { flex:1; min-width:0; margin-right:14px; }
+  .toggle-label { font-size:13px; font-weight:600; color:var(--text); margin-bottom:3px; }
+  .toggle-desc { font-size:11px; color:var(--text-muted); line-height:1.4; }
+
+  /* ── FAB Deploy (mobile only) ────────────────────────── */
+  .fab-deploy { display: none; }
+  @media (max-width: 768px) {
+    .fab-deploy {
+      display: flex; align-items: center; justify-content: center;
+      position: fixed; bottom: 22px; right: 18px; z-index: 450;
+      width: 54px; height: 54px; border-radius: 50%;
+      background: var(--accent); color: #fff; border: none; cursor: pointer;
+      box-shadow: 0 4px 20px rgba(232,99,10,0.55), 0 2px 8px rgba(0,0,0,0.4);
+      transition: transform 0.15s, box-shadow 0.15s;
+      font-size: 24px;
+    }
+    .fab-deploy:active { transform: scale(0.93); }
+    .fab-deploy i { font-size: 24px; line-height: 1; }
+  }
+
+  /* ── FAB Navigation (mobile, opt-in) ─────────────────── */
+  .fab-nav { display: none; }
+  @media (max-width: 768px) {
+    .fab-nav {
+      display: flex; align-items: center; justify-content: center;
+      position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%);
+      z-index: 452; width: 54px; height: 54px;
+      opacity: 0; pointer-events: none;
+      transition: opacity 0.28s, transform 0.28s;
+    }
+    .fab-nav.fab-nav-show { opacity: 1; pointer-events: auto; }
+    /* Darken slightly when menu is open for visual feedback */
+    .fab-nav.fab-nav-open { opacity: 1 !important; pointer-events: auto !important; }
+
+    /* Main button */
+    .fab-nav-btn {
+      width: 54px; height: 54px; border-radius: 50%;
+      background: var(--surface); border: 2px solid rgba(232,99,10,0.55);
+      color: var(--accent);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px; cursor: pointer;
+      box-shadow: 0 4px 22px rgba(0,0,0,0.5);
+      transition: transform 0.2s, background 0.2s, border-color 0.2s, box-shadow 0.2s;
+      touch-action: none; user-select: none; -webkit-user-select: none;
+      position: relative; z-index: 2; flex-shrink: 0;
+    }
+    .fab-nav-btn.fab-open {
+      background: var(--accent); color: #fff; border-color: var(--accent);
+      transform: rotate(45deg);
+      box-shadow: 0 4px 28px rgba(232,99,10,0.65);
+    }
+    .fab-nav-btn:active:not(.fab-open) { transform: scale(0.9); }
+
+    /* Items container — positioned at button center */
+    .fab-nav-items {
+      position: absolute; bottom: 27px; left: 27px;
+      width: 0; height: 0; pointer-events: none;
+    }
+
+    /* Individual nav item circles */
+    .fab-nav-item {
+      position: absolute; width: 44px; height: 44px; border-radius: 50%;
+      top: 0; left: 0; margin: -22px 0 0 -22px;
+      background: var(--surface); border: 1.5px solid var(--border2);
+      color: var(--text-dim); font-size: 18px;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer;
+      opacity: 0;
+      transform: translate(var(--tx,0px), var(--ty,0px)) scale(0.2);
+      transition: opacity 0.22s, transform 0.22s, background 0.15s, border-color 0.15s, color 0.15s;
+      pointer-events: none;
+      box-shadow: 0 3px 14px rgba(0,0,0,0.4);
+      touch-action: none; user-select: none; -webkit-user-select: none;
+      border: none; /* reset button border, use outline below */
+      outline: 1.5px solid var(--border2);
+    }
+    .fab-nav-items.fab-items-open .fab-nav-item {
+      opacity: 1;
+      transform: translate(var(--tx,0px), var(--ty,0px)) scale(1);
+      pointer-events: auto;
+    }
+    /* Current page highlight */
+    .fab-nav-item.fab-current {
+      outline-color: var(--accent); background: rgba(232,99,10,0.15); color: var(--accent);
+    }
+    /* Drag-hover highlight */
+    .fab-nav-item.fab-hovered {
+      outline-color: var(--accent) !important; background: var(--accent) !important;
+      color: #fff !important;
+      transform: translate(var(--tx,0px), var(--ty,0px)) scale(1.22) !important;
+      box-shadow: 0 4px 22px rgba(232,99,10,0.55) !important;
+    }
+
+    /* Hint label above button (shows dragged item name) */
+    .fab-nav-hint {
+      position: absolute; bottom: 62px; left: 50%; transform: translateX(-50%);
+      background: var(--surface); outline: 1px solid var(--border2);
+      border-radius: 20px; padding: 5px 13px;
+      font-size: 11px; font-weight: 700; font-family: var(--sans);
+      color: var(--text); white-space: nowrap;
+      opacity: 0; pointer-events: none;
+      transition: opacity 0.18s;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.35); z-index: 3;
+    }
+    .fab-nav-hint.fab-hint-show { opacity: 1; }
+
+    /* Background overlay — closes menu on tap */
+    .fab-nav-overlay {
+      display: none; position: fixed; inset: 0;
+      z-index: 451; /* below fab-nav but above content */
+    }
+    .fab-nav-overlay.fab-ov-open { display: block; }
+  }
+
+  /* ── FAB Action — context button (mobile, opt-in with FAB nav) ── */
+  .fab-action { display: none; }
+  @media (max-width: 768px) {
+    .fab-action {
+      position: fixed; bottom: 22px; right: 18px; z-index: 452;
+      display: flex; align-items: center; justify-content: center;
+      width: 54px; height: 54px;
+    }
+    /* Main action button — orange like deploy FAB */
+    .fab-action-btn {
+      width: 54px; height: 54px; border-radius: 50%;
+      background: var(--accent); color: #fff; border: none; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px;
+      box-shadow: 0 4px 20px rgba(232,99,10,0.55), 0 2px 8px rgba(0,0,0,0.4);
+      transition: transform 0.2s, box-shadow 0.2s, background 0.2s;
+      touch-action: none; user-select: none; -webkit-user-select: none;
+      position: relative; z-index: 2; flex-shrink: 0;
+    }
+    .fab-action-btn.fab-sub-active {
+      background: #bf4f08;
+      transform: rotate(45deg);
+      box-shadow: 0 4px 28px rgba(232,99,10,0.7);
+    }
+    .fab-action-btn:active:not(.fab-sub-active) { transform: scale(0.9); }
+
+    /* Sub-items container anchored at button center */
+    .fab-action-items {
+      position: absolute; bottom: 27px; left: 27px;
+      width: 0; height: 0; pointer-events: none;
+    }
+    .fab-action-item {
+      position: absolute; width: 44px; height: 44px; border-radius: 50%;
+      top: 0; left: 0; margin: -22px 0 0 -22px;
+      background: var(--surface); outline: 1.5px solid var(--accent);
+      color: var(--accent); font-size: 18px;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; border: none;
+      opacity: 0;
+      transform: translate(var(--tx,0px), var(--ty,0px)) scale(0.2);
+      transition: opacity 0.22s, transform 0.22s, background 0.15s, color 0.15s;
+      pointer-events: none;
+      box-shadow: 0 3px 14px rgba(0,0,0,0.4);
+      touch-action: none; user-select: none; -webkit-user-select: none;
+    }
+    .fab-action-items.fab-sub-open .fab-action-item {
+      opacity: 1;
+      transform: translate(var(--tx,0px), var(--ty,0px)) scale(1);
+      pointer-events: auto;
+    }
+    .fab-action-item.fab-hovered {
+      background: var(--accent) !important; color: #fff !important;
+      transform: translate(var(--tx,0px), var(--ty,0px)) scale(1.2) !important;
+      box-shadow: 0 4px 20px rgba(232,99,10,0.55) !important;
+    }
+    /* Hint label */
+    .fab-action-hint {
+      position: absolute; bottom: 62px; left: 50%; transform: translateX(-50%);
+      background: var(--surface); outline: 1px solid var(--border2);
+      border-radius: 20px; padding: 5px 13px;
+      font-size: 11px; font-weight: 700; font-family: var(--sans);
+      color: var(--text); white-space: nowrap;
+      opacity: 0; pointer-events: none; transition: opacity 0.18s;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.35); z-index: 3;
+    }
+    .fab-action-hint.fab-hint-show { opacity: 1; }
+    /* Sub-overlay */
+    .fab-action-overlay {
+      display: none; position: fixed; inset: 0; z-index: 451;
+    }
+    .fab-action-overlay.fab-ov-open { display: block; }
+  }
+
   /* ── Mobile ─────────────────────────────────────────── */
   @media (max-width: 768px) {
-    body { overflow-y: auto; }
+    /* ─ Root layout ─ */
+    html, body { overflow: hidden; }
+    body { height: 100vh; height: 100dvh; }
+
+    /* ─ Sidebar drawer ─ */
     .hamburger { display: block; }
-    .sidebar { position: fixed; left: 0; top: 0; height: 100vh; transform: translateX(-100%); }
-    .sidebar.open { transform: translateX(0); box-shadow: 4px 0 24px rgba(0,0,0,0.5); }
-    .content { padding: 14px; }
-    .stats-row { grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
-    .stat-value { font-size: 22px; }
-    .grid-2 { grid-template-columns: 1fr; }
-    .instances-grid { grid-template-columns: 1fr; }
-    .catalog-grid { grid-template-columns: 1fr; }
-    .monitor-grid { grid-template-columns: 1fr; }
-    .template-grid { grid-template-columns: 1fr; }
-    .form-row { grid-template-columns: 1fr; }
-    .form-row-3 { grid-template-columns: 1fr 1fr; }
-    .modal { width: 100% !important; max-width: 100vw; border-radius: 12px 12px 0 0; margin-top: auto; }
-    .modal-overlay { align-items: flex-end; }
-    .server-item { flex-wrap: wrap; gap: 10px; }
-    .server-actions { flex-wrap: wrap; }
-    .instance-actions { flex-wrap: wrap; }
-    .topbar { padding: 0 14px; gap: 8px; }
+    .sidebar {
+      position: fixed; left: 0; top: 0;
+      width: 260px; height: 100vh; height: 100dvh;
+      transform: translateX(-100%);
+      z-index: 700; min-height: unset;
+      transition: transform 0.28s cubic-bezier(0.4,0,0.2,1);
+    }
+    .sidebar.open { transform: translateX(0); box-shadow: 8px 0 40px rgba(0,0,0,0.65); }
+    .sidebar-overlay { z-index: 699; }
+
+    /* ─ Main area ─ */
+    .main { overflow: hidden; width: 100%; max-width: 100vw; }
+    .content {
+      padding: 14px 12px 80px; /* bottom padding for FAB */
+      overflow-y: auto; overflow-x: hidden;
+      height: calc(100vh - 48px); height: calc(100dvh - 48px);
+      -webkit-overflow-scrolling: touch;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    /* Hard clamp: nothing inside content can push beyond viewport */
+    .content > * { max-width: 100%; box-sizing: border-box; }
+
+    /* ─ Topbar: hamburger | title | icons ─ */
+    .topbar { padding: 0 8px 0 4px; gap: 4px; height: 48px; flex-shrink: 0; }
+    .topbar-title {
+      flex: 1; font-size: 13px; font-weight: 700;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      padding: 0 4px;
+    }
+    #topbar-user { display: none; }
+    .topbar-deploy-text { display: none; }
+    .topbar-hide-mobile { display: none !important; }
+    /* Hide the topbar deploy button — FAB takes over */
+    .topbar .topbar-deploy-btn { display: none !important; }
+
+    /* ─ Stat cards: 2×2 compact ─ */
+    .stats-row { grid-template-columns: 1fr 1fr !important; gap: 8px !important; margin-bottom: 14px !important; }
+    .stat-card { padding: 12px !important; gap: 10px !important; }
+    .stat-icon { width: 36px !important; height: 36px !important; min-width: 36px !important; border-radius: 8px; flex-shrink: 0; }
+    .stat-icon i { font-size: 18px !important; }
+    .stat-value { font-size: 22px !important; }
+    .stat-label { font-size: 9px !important; }
+    .stat-sub { display: none !important; }
+
+    /* ─ Dashboard ─ */
+    .dash-grid { grid-template-columns: 1fr !important; gap: 12px !important; }
+
+    /* ─ All grids → single column ─ */
+    .grid-2,
+    .instances-grid,
+    .catalog-grid,
+    .monitor-grid,
+    .template-grid { grid-template-columns: 1fr !important; }
+    .form-row { grid-template-columns: 1fr !important; }
+    .form-row-3 { grid-template-columns: 1fr 1fr !important; }
+
+    /* ─ Server stats bar ─ */
+    .srv-stats-bar { flex-direction: column !important; flex-wrap: nowrap !important; }
+    .srv-stat-card { min-width: 0 !important; width: 100% !important; flex: none !important; }
+    .srv-stat-metrics { grid-template-columns: 1fr 1fr 1fr !important; }
+
+    /* ─ Packages ─ */
+    #packages-grid { grid-template-columns: 1fr !important; }
+
+    /* ─ Instance toolbar ─ */
+    .inst-toolbar { gap: 6px !important; align-items: stretch !important; flex-direction: column !important; margin-bottom: 14px !important; }
+    .inst-toolbar input.inst-search { max-width: none !important; }
+    .inst-filter-body { display: none; width: 100%; }
+    .inst-filter-body.open { display: block; }
+    .filter-row-wrap { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 6px 0; }
+    .mobile-filter-toggle { display: flex !important; }
+    .filter-row { flex-wrap: wrap; gap: 5px; }
+    .desktop-only { display: none !important; }
+
+    /* ─ Instance cards ─ */
+    .inst-card-actions { flex-wrap: wrap; gap: 5px; }
+    .inst-card-actions .btn-sm { flex: 1; justify-content: center; min-width: 70px; }
+    .inst-act-spacer { display: none; }
+
+    /* ─ Section headers ─ */
     .section-header { flex-wrap: wrap; gap: 8px; }
-    .cat-filter { gap: 4px; }
+    .section-title { font-size: 14px; }
+
+    /* ─ Tables: horizontal scroll ─ */
+    .table-scroll-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; max-width: 100%; }
+    .user-table { min-width: 540px; }
+
+    /* ─ Notes ─ */
+    .notes-grid { grid-template-columns: 1fr 1fr !important; gap: 10px !important; }
+
+    /* ─ Server list ─ */
+    .server-item { flex-wrap: wrap; gap: 8px; }
+    .server-actions { flex-wrap: wrap; gap: 6px; }
+
+    /* ─ Catalog filter ─ */
+    .cat-filter { gap: 4px; flex-wrap: wrap; }
     .cat-filter-btn { font-size: 10px; padding: 3px 8px; }
+
+    /* ─ Modals: bottom-sheet ─ */
+    .modal-overlay { align-items: flex-end !important; padding: 0; }
+    .modal {
+      width: 100% !important; max-width: 100% !important;
+      border-radius: 20px 20px 0 0 !important;
+      margin: 0 !important; max-height: 92vh; max-height: 92dvh;
+    }
+    /* Drag handle on modals */
+    .modal-header::before {
+      content: ''; display: block; position: absolute;
+      top: 8px; left: 50%; transform: translateX(-50%);
+      width: 36px; height: 4px; border-radius: 2px;
+      background: var(--border2);
+    }
+    .modal-header { position: relative; padding-top: 20px; }
+    /* Pkg-detail: near fullscreen */
+    #pkg-detail-modal .modal { height: 90vh !important; height: 90dvh !important; }
+    .pkg-detail-cols { grid-template-columns: 1fr !important; }
   }
-  @media (max-width: 480px) {
-    .stats-row { grid-template-columns: 1fr 1fr; }
-    .dash-grid { grid-template-columns: 1fr; }
+
+  /* ── Very small screens (≤400px) ─────────────────────── */
+  @media (max-width: 400px) {
+    .stats-row { grid-template-columns: 1fr 1fr !important; gap: 6px !important; }
+    .stat-card { padding: 10px !important; gap: 8px !important; }
+    .stat-value { font-size: 18px !important; }
+    .stat-icon { width: 30px !important; height: 30px !important; min-width: 30px !important; }
+    .stat-icon i { font-size: 15px !important; }
+    .notes-grid { grid-template-columns: 1fr !important; }
     .topbar-title { font-size: 12px; }
-    .btn-sm { padding: 4px 8px; font-size: 10px; }
-  }
-  @media (max-width: 900px) {
-    .stats-row { grid-template-columns: repeat(3,1fr); }
-    .dash-grid { grid-template-columns: 1fr; }
+    .content { padding: 10px 10px 80px !important; }
   }
 
   /* Buttons */
@@ -143,27 +449,27 @@
   .btn-sm { padding: 4px 10px; font-size: 11px; }
   .btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
-  /* Stats */
-  .stats-row { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:20px; }
-  .stat-card { background:var(--panel); border:1px solid var(--border); border-radius:8px; padding:16px 18px; display:flex; align-items:center; gap:14px; }
-  .stat-icon { width:40px; height:40px; border-radius:8px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  /* Stats — auto-fit so columns collapse naturally on any screen width */
+  .stats-row { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin-bottom:20px; }
+  .stat-card { background:var(--panel); border:1px solid var(--border); border-radius:8px; padding:14px 16px; display:flex; align-items:center; gap:12px; overflow:hidden; }
+  .stat-icon { width:40px; height:40px; min-width:40px; border-radius:8px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
   .stat-icon i { font-size:20px; }
   .stat-icon.total  { background:rgba(127,90,240,0.15); }
   .stat-icon.run    { background:rgba(61,220,132,0.15); }
   .stat-icon.stop   { background:rgba(255,71,87,0.12); }
   .stat-icon.srv    { background:rgba(78,205,196,0.12); }
   .stat-icon.req    { background:rgba(255,159,67,0.15); }
-  .stat-body { flex:1; min-width:0; }
-  .stat-label { font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:1.5px; margin-bottom:4px; }
-  .stat-value { font-family:var(--sans); font-size:26px; font-weight:800; color:var(--text); line-height:1; }
+  .stat-body { flex:1; min-width:0; overflow:hidden; }
+  .stat-label { font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .stat-value { font-family:var(--sans); font-size:24px; font-weight:800; color:var(--text); line-height:1; white-space:nowrap; }
   .stat-value.green  { color:var(--green); }
   .stat-value.accent { color:var(--accent); }
   .stat-value.red    { color:var(--red); }
   .stat-value.blue   { color:var(--blue); }
   .stat-sub { font-size:10px; color:var(--text-muted); margin-top:3px; }
 
-  /* Dashboard overview grid */
-  .dash-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:20px; }
+  /* Dashboard overview grid — collapses to 1 col below ~640px */
+  .dash-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:16px; margin-bottom:20px; }
   .dash-card { background:var(--panel); border:1px solid var(--border); border-radius:8px; padding:16px 18px; }
   .dash-card-title { font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:1.2px; margin-bottom:14px; display:flex; align-items:center; gap:8px; }
   .run-bar-wrap { background:var(--bg); border-radius:4px; height:8px; overflow:hidden; margin:8px 0 4px; }
@@ -203,11 +509,11 @@
   .note-add-card i { font-size:22px; }
   .note-add-card small { font-size:11px; font-family:var(--mono); }
 
-  /* Cards / Grid */
-  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  /* Cards / Grid — collapses to 1 col below ~640px */
+  .grid-2 { display: grid; grid-template-columns: repeat(auto-fit,minmax(280px,1fr)); gap: 16px; }
   .card { background: var(--panel); border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
   .card-header { padding: 14px 18px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-  .card-title { font-family: var(--sans); font-size: 13px; font-weight: 700; color: #fff; }
+  .card-title { font-family: var(--sans); font-size: 13px; font-weight: 700; color: var(--text); }
   .card-body { padding: 16px 18px; }
 
   /* Instances */
@@ -238,6 +544,10 @@
   .inst-toolbar { display:flex; align-items:center; gap:8px; margin-bottom:20px; flex-wrap:wrap; }
   .inst-toolbar .form-control { padding:7px 11px; }
   .inst-toolbar input.inst-search { flex:1; min-width:150px; max-width:240px; }
+  .inst-filter-body { display:flex; flex-wrap:wrap; align-items:center; gap:8px; width:100%; }
+  .filter-row-wrap { display:contents; } /* on desktop, items flow inline */
+  .mobile-filter-toggle { display:none; }
+  .desktop-only { display:flex; }
   .filter-row { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
   .filter-label { font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:1px; white-space:nowrap; }
   .filter-sep { width:1px; height:18px; background:var(--border2); margin:0 2px; flex-shrink:0; }
@@ -279,7 +589,7 @@
   .server-list { display: flex; flex-direction: column; gap: 10px; }
   .server-item { background: var(--panel); border: 1px solid var(--border); border-radius: 6px; padding: 14px 16px; display: flex; align-items: center; gap: 16px; }
   .server-info { flex: 1; }
-  .server-name { font-family: var(--sans); font-weight: 700; color: #fff; font-size: 14px; }
+  .server-name { font-family: var(--sans); font-weight: 700; color: var(--text); font-size: 14px; }
   .server-detail { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
   .server-actions { display: flex; gap: 6px; }
 
@@ -329,7 +639,7 @@
 
   /* Section */
   .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
-  .section-title { font-family: var(--sans); font-size: 16px; font-weight: 700; color: #fff; }
+  .section-title { font-family: var(--sans); font-size: 16px; font-weight: 700; color: var(--text); }
   .divider { height: 1px; background: var(--border); margin: 20px 0; }
 
   /* Toast */
@@ -349,7 +659,7 @@
   .monitor-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px,1fr)); gap: 14px; }
   .monitor-card { background: var(--panel); border: 1px solid var(--border); border-left: 3px solid var(--green); border-radius: 6px; padding: 16px; }
   .monitor-card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
-  .monitor-name { font-family: var(--sans); font-size: 14px; font-weight: 700; color: #fff; }
+  .monitor-name { font-family: var(--sans); font-size: 14px; font-weight: 700; color: var(--text); }
   .monitor-sub  { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
   .monitor-metrics { display: flex; flex-direction: column; gap: 10px; }
   .metric-row { display: flex; flex-direction: column; gap: 4px; }
@@ -368,7 +678,7 @@
   .catalog-card { background: var(--panel); border: 1px solid var(--border); border-radius: 6px; padding: 16px; display: flex; flex-direction: column; gap: 10px; transition: border-color 0.2s; }
   .catalog-card:hover { border-color: var(--border2); }
   .catalog-image-badge { display: inline-block; background: rgba(232,99,10,0.12); color: var(--accent); border: 1px solid rgba(232,99,10,0.3); border-radius: 3px; font-size: 10px; padding: 2px 7px; font-weight: 700; font-family: var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
-  .catalog-name { font-family: var(--sans); font-size: 15px; font-weight: 700; color: #fff; }
+  .catalog-name { font-family: var(--sans); font-size: 15px; font-weight: 700; color: var(--text); }
   .catalog-desc { font-size: 11px; color: var(--text-dim); line-height: 1.5; }
   .catalog-category { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; }
   .catalog-actions { display: flex; gap: 6px; margin-top: auto; }
@@ -380,7 +690,7 @@
   /* Templates */
   .template-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px,1fr)); gap: 14px; }
   .template-card { background: var(--panel); border: 1px solid var(--border); border-radius: 6px; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
-  .template-name { font-family: var(--sans); font-size: 14px; font-weight: 700; color: #fff; }
+  .template-name { font-family: var(--sans); font-size: 14px; font-weight: 700; color: var(--text); }
   .template-meta { font-size: 11px; color: var(--text-muted); }
   .template-actions { display: flex; gap: 6px; }
 
@@ -422,10 +732,29 @@
   .role-badge { display: inline-block; padding: 2px 8px; border-radius: 3px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
   .role-badge.admin { background: rgba(232,99,10,0.15); color: var(--accent); border: 1px solid rgba(232,99,10,0.3); }
   .role-badge.customer { background: rgba(78,205,196,0.12); color: var(--blue); border: 1px solid rgba(78,205,196,0.3); }
-  .pkg-card { background: var(--panel); border: 1px solid var(--border); border-radius: 6px; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
-  .pkg-name { font-family: var(--sans); font-size: 14px; font-weight: 700; color: #fff; }
-  .pkg-desc { font-size: 11px; color: var(--text-dim); }
-  .pkg-stats { font-size: 10px; color: var(--text-muted); }
+  .pkg-card { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 20px; display: flex; flex-direction: column; gap: 14px; cursor: pointer; transition: border-color 0.2s, box-shadow 0.2s; }
+  .pkg-card:hover { border-color: var(--accent); box-shadow: 0 4px 16px rgba(0,0,0,0.25); }
+  .pkg-card-header { display: flex; align-items: flex-start; gap: 12px; }
+  .pkg-icon-wrap { width: 44px; height: 44px; min-width: 44px; border-radius: 10px; background: rgba(232,99,10,0.15); border: 1px solid rgba(232,99,10,0.25); display: flex; align-items: center; justify-content: center; color: var(--accent); font-size: 22px; }
+  .pkg-name { font-family: var(--sans); font-size: 15px; font-weight: 700; color: var(--text); line-height: 1.2; }
+  .pkg-desc { font-size: 11px; color: var(--text-dim); margin-top: 2px; line-height: 1.4; }
+  .pkg-card-actions { display: flex; gap: 4px; margin-left: auto; flex-shrink: 0; }
+  .pkg-stats-row { display: flex; align-items: center; gap: 16px; padding: 10px 12px; background: var(--bg); border-radius: 6px; }
+  .pkg-stat { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-muted); }
+  .pkg-stat i { font-size: 14px; }
+  .pkg-stat strong { color: var(--text); font-size: 13px; font-weight: 700; }
+  .pkg-user-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+  .pkg-user-chip { padding: 3px 9px; background: rgba(78,205,196,0.1); border: 1px solid rgba(78,205,196,0.2); border-radius: 10px; font-size: 10px; color: var(--blue); }
+  .pkg-more-chip { padding: 3px 9px; background: var(--bg); border: 1px solid var(--border); border-radius: 10px; font-size: 10px; color: var(--text-muted); }
+  /* Package detail modal */
+  .pkg-detail-section { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted); margin-bottom: 10px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+  .pkg-detail-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; background: var(--bg); border-radius: 6px; font-size: 12px; }
+  .pkg-detail-row .username { font-weight: 600; color: var(--text); }
+  .pkg-detail-row .email { color: var(--text-muted); font-size: 11px; margin-left: auto; }
+  .pkg-detail-inst { display: flex; align-items: center; gap: 10px; padding: 8px 10px; background: var(--bg); border-radius: 6px; font-size: 12px; cursor: pointer; transition: background 0.15s, border-color 0.15s; border: 1px solid transparent; }
+  .pkg-detail-inst:hover { background: rgba(232,99,10,0.07); border-color: rgba(232,99,10,0.25); }
+  .pkg-detail-inst .iname { font-weight: 600; color: var(--text); }
+  .pkg-detail-inst .isrv { color: var(--text-muted); font-size: 10px; margin-left: auto; }
 </style>
 </head>
 <body>
@@ -539,7 +868,10 @@
 
 <nav class="sidebar">
   <div class="logo">
-    <div class="logo-mark"><i class="ti ti-hexagon" style="color:var(--accent);font-size:18px"></i> <span class="accent">NitradoMedia</span> <span class="dim">Fleet</span></div>
+    <div class="logo-mark">
+      <i class="ti ti-hexagon logo-icon"></i>
+      <div class="logo-text"><span class="accent">NitradoMedia</span><span class="dim">Fleet</span></div>
+    </div>
     <div class="logo-sub">Deployment Dashboard</div>
   </div>
   <div class="nav">
@@ -565,8 +897,8 @@
     <div class="topbar-title" id="page-title">Dashboard</div>
     <span id="topbar-user" style="font-size:11px;color:var(--text-muted)"></span>
     <button class="btn btn-ghost btn-sm" id="theme-toggle" onclick="toggleTheme()" title="Dark/Light Mode" style="font-size:16px;padding:4px 8px"><i class="ti ti-moon"></i></button>
-    <button class="btn btn-ghost btn-sm" onclick="refreshAll()" title="Aktualisieren"><i class="ti ti-refresh"></i></button>
-    <button class="btn btn-primary btn-sm admin-only" onclick="openDeployModal()"><i class="ti ti-rocket"></i> Deploy</button>
+    <button class="btn btn-ghost btn-sm topbar-hide-mobile" onclick="refreshAll()" title="Aktualisieren"><i class="ti ti-refresh"></i></button>
+    <button class="btn btn-primary btn-sm admin-only topbar-deploy-btn" onclick="openDeployModal()"><i class="ti ti-rocket"></i><span class="topbar-deploy-text"> Deploy</span></button>
     <button class="btn btn-ghost btn-sm" onclick="logout()" style="color:var(--red);border-color:rgba(255,71,87,0.3)" title="Abmelden"><i class="ti ti-power"></i></button>
   </div>
   <div class="content">
@@ -662,31 +994,39 @@
         <div class="srv-stats-loading"><i class="ti ti-loader-2" style="animation:spin 1s linear infinite"></i> Server-Auslastung wird geladen…</div>
       </div>
       <div class="inst-toolbar">
-        <input class="form-control inst-search" id="inst-search" placeholder="Suchen…" oninput="renderInstancesList()">
-        <div class="filter-sep"></div>
-        <span class="filter-label">Gruppe</span>
-        <div class="filter-row" id="chips-group">
-          <button class="fchip" data-val="none" onclick="setInstFilter('group','none')">Keine</button>
-          <button class="fchip on" data-val="status" onclick="setInstFilter('group','status')">Status</button>
-          <button class="fchip" data-val="server" onclick="setInstFilter('group','server')">Server</button>
-          <button class="fchip" data-val="both" onclick="setInstFilter('group','both')">Status + Server</button>
+        <!-- Row 1: search + mobile filter toggle -->
+        <div style="display:flex;gap:6px;width:100%;align-items:center">
+          <input class="form-control inst-search" id="inst-search" placeholder="Suchen…" oninput="renderInstancesList()" style="flex:1;min-width:0">
+          <button class="mobile-filter-toggle" id="mob-filter-btn" onclick="toggleMobileFilter()"><i class="ti ti-adjustments-horizontal"></i> Filter</button>
+          <div class="desktop-only" style="margin-left:auto;flex-shrink:0">
+            <button class="btn btn-primary btn-sm admin-only" onclick="openDeployModal()"><i class="ti ti-rocket"></i> Deploy</button>
+          </div>
         </div>
-        <div class="filter-sep"></div>
-        <span class="filter-label">Status</span>
-        <div class="filter-row" id="chips-status">
-          <button class="fchip on" data-val="all" onclick="setInstFilter('status','all')">Alle</button>
-          <button class="fchip" data-val="running" onclick="setInstFilter('status','running')"><i class="ti ti-player-play"></i> Running</button>
-          <button class="fchip" data-val="stopped" onclick="setInstFilter('status','stopped')"><i class="ti ti-player-stop"></i> Stopped</button>
-        </div>
-        <div class="filter-sep"></div>
-        <span class="filter-label">Sortierung</span>
-        <select class="form-control" id="inst-sort" style="width:120px;padding:5px 8px;font-size:11px" onchange="renderInstancesList()">
-          <option value="name">Name</option>
-          <option value="port">Port</option>
-          <option value="status">Status</option>
-        </select>
-        <div style="margin-left:auto">
-          <button class="btn btn-primary btn-sm admin-only" onclick="openDeployModal()"><i class="ti ti-rocket"></i> Deploy</button>
+        <!-- Filter chips: always visible on desktop, collapsible on mobile -->
+        <div class="inst-filter-body" id="inst-filter-body">
+          <div class="filter-row-wrap">
+            <span class="filter-label">Gruppe</span>
+            <div class="filter-row" id="chips-group">
+              <button class="fchip" data-val="none" onclick="setInstFilter('group','none')">Keine</button>
+              <button class="fchip on" data-val="status" onclick="setInstFilter('group','status')">Status</button>
+              <button class="fchip" data-val="server" onclick="setInstFilter('group','server')">Server</button>
+              <button class="fchip" data-val="both" onclick="setInstFilter('group','both')">Status + Server</button>
+            </div>
+            <div class="filter-sep"></div>
+            <span class="filter-label">Status</span>
+            <div class="filter-row" id="chips-status">
+              <button class="fchip on" data-val="all" onclick="setInstFilter('status','all')">Alle</button>
+              <button class="fchip" data-val="running" onclick="setInstFilter('status','running')"><i class="ti ti-player-play"></i> Running</button>
+              <button class="fchip" data-val="stopped" onclick="setInstFilter('status','stopped')"><i class="ti ti-player-stop"></i> Stopped</button>
+            </div>
+            <div class="filter-sep"></div>
+            <span class="filter-label">Sortierung</span>
+            <select class="form-control" id="inst-sort" style="width:120px;padding:5px 8px;font-size:11px" onchange="renderInstancesList()">
+              <option value="name">Name</option>
+              <option value="port">Port</option>
+              <option value="status">Status</option>
+            </select>
+          </div>
         </div>
       </div>
       <div id="instances-list">
@@ -781,6 +1121,26 @@
         </div>
       </div>
 
+      <!-- Mobile Navigation -->
+      <div class="card" style="margin-top:20px">
+        <div class="card-header">
+          <div class="card-title"><i class="ti ti-device-mobile" style="color:var(--accent)"></i> Mobile Navigation</div>
+        </div>
+        <div class="card-body">
+          <p style="font-size:12px;color:var(--text-dim);margin-bottom:16px;line-height:1.6">
+            Ersetzt das Hamburger-Menü auf dem Handy durch einen kreisförmigen <strong style="color:var(--text)">FAB-Button</strong> in der Mitte.
+            Er erscheint beim Scrollen — kurz tippen öffnet das Navigationsrad, gedrückt halten und zur Seite ziehen für schnelles Wechseln.
+          </p>
+          <div class="toggle-row">
+            <div class="toggle-info">
+              <div class="toggle-label">FAB-Navigation</div>
+              <div class="toggle-desc">Kreismenü statt Sidebar-Schublade (nur auf Mobilgeräten aktiv)</div>
+            </div>
+            <button class="toggle-sw" id="fab-nav-sw" onclick="toggleFabNav()"></button>
+          </div>
+        </div>
+      </div>
+
       <!-- Uptime Kuma Integration -->
       <div class="card admin-only" style="margin-top:20px">
         <div class="card-header">
@@ -867,7 +1227,7 @@
         <button class="btn btn-primary btn-sm" onclick="openUserModal()">+ Benutzer hinzufügen</button>
       </div>
       <div class="card">
-        <div class="card-body" style="padding:0">
+        <div class="card-body table-scroll-wrap" style="padding:0">
           <table class="user-table">
             <thead><tr><th>Benutzername</th><th>E-Mail</th><th>Rolle</th><th>Status</th><th>Pakete</th><th>Erstellt</th><th>Aktionen</th></tr></thead>
             <tbody id="users-tbody"></tbody>
@@ -880,10 +1240,10 @@
     <div class="page" id="page-packages">
       <div class="section-header">
         <div class="section-title">Paket-Verwaltung</div>
-        <button class="btn btn-primary btn-sm" onclick="openPackageModal()">+ Paket erstellen</button>
+        <button class="btn btn-primary btn-sm" onclick="openPackageModal()"><i class="ti ti-plus"></i> Paket erstellen</button>
       </div>
-      <div class="grid-2" id="packages-grid">
-        <div class="empty-state"><div class="empty-icon">📦</div><div class="empty-text">Keine Pakete</div></div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px" id="packages-grid">
+        <div class="empty-state"><div class="empty-icon"><i class="ti ti-package" style="font-size:32px"></i></div><div class="empty-text">Keine Pakete</div></div>
       </div>
     </div>
 
@@ -904,7 +1264,7 @@
           <button class="btn btn-ghost btn-sm" onclick="loadLogs()">⟳ Aktualisieren</button>
         </div>
       </div>
-      <div id="logs-table-wrap" style="overflow-x:auto">
+      <div id="logs-table-wrap" class="table-scroll-wrap" style="overflow-x:auto">
         <div class="empty-state"><div class="empty-icon">📋</div><div class="empty-text">Logs werden geladen...</div></div>
       </div>
     </div>
@@ -956,13 +1316,48 @@
         <select class="form-control" id="approve-server"></select>
       </div>
       <div class="form-group">
-        <label class="form-label">Paket (Kunde)</label>
+        <label class="form-label">Paket zuweisen <span style="color:var(--text-muted);font-weight:400">(optional)</span></label>
         <select class="form-control" id="approve-package"></select>
       </div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeApproveModal()">Abbrechen</button>
       <button class="btn btn-primary" onclick="submitApproval()">▶ Freigeben & Deployen</button>
+    </div>
+  </div>
+</div>
+
+<!-- Package Detail Modal -->
+<div class="modal-overlay" id="pkg-detail-modal" style="display:none">
+  <div class="modal" style="max-width:720px;height:76vh;display:flex;flex-direction:column;overflow:hidden">
+    <div class="modal-header">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div class="pkg-icon-wrap" style="width:32px;height:32px;min-width:32px;font-size:16px;border-radius:7px"><i class="ti ti-package"></i></div>
+        <div>
+          <div id="pkg-detail-name" style="font-size:15px;font-weight:700"></div>
+          <div id="pkg-detail-desc-head" style="font-size:11px;color:var(--text-dim);margin-top:1px"></div>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn btn-ghost btn-sm" id="pkg-detail-edit-btn"><i class="ti ti-pencil"></i> Bearbeiten</button>
+        <button class="modal-close" onclick="closePkgDetail()"><i class="ti ti-x"></i></button>
+      </div>
+    </div>
+    <div class="modal-body" style="overflow-y:auto;flex:1">
+      <div class="pkg-detail-cols" style="display:grid;grid-template-columns:1fr 1fr;gap:24px">
+        <div>
+          <div class="pkg-detail-section"><i class="ti ti-users"></i> Zugewiesene Kunden</div>
+          <div id="pkg-detail-customers" style="display:flex;flex-direction:column;gap:6px">
+            <div style="color:var(--text-muted);font-size:12px;text-align:center;padding:20px">Laden...</div>
+          </div>
+        </div>
+        <div>
+          <div class="pkg-detail-section"><i class="ti ti-server"></i> Enthaltene Instanzen</div>
+          <div id="pkg-detail-instances" style="display:flex;flex-direction:column;gap:6px">
+            <div style="color:var(--text-muted);font-size:12px;text-align:center;padding:20px">Laden...</div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -1286,6 +1681,9 @@ function applyRole() {
   document.querySelectorAll('.customer-only').forEach(el => el.style.display = isAdmin ? 'none' : '');
   const userEl = document.getElementById('topbar-user');
   if (userEl) userEl.textContent = `${currentUser?.username || ''} · ${isAdmin ? 'Admin' : 'Kunde'}`;
+  // Init FAB nav after role is known
+  if (fabNavEnabled) initFabNav();
+  else applyFabNavState();
 }
 
 // ── Init ─────────────────────────────────────────────────────
@@ -1339,6 +1737,9 @@ async function ukLoadSettings() {
     if (s.uk_user) { const el = document.getElementById('uk-user'); if (el) el.value = s.uk_user; }
     if (s.uk_pass) { const el = document.getElementById('uk-pass'); if (el) el.value = s.uk_pass; }
   } catch {}
+  // Sync FAB nav toggle
+  const sw = document.getElementById('fab-nav-sw');
+  if (sw) sw.classList.toggle('on', fabNavEnabled);
 }
 
 async function ukSaveSettings() {
@@ -2241,28 +2642,44 @@ async function loadPackages() {
 async function renderPackages() {
   const grid = document.getElementById('packages-grid');
   if (!grid) return;
-  if (!allPkgs.length) { grid.innerHTML = `<div class="empty-state"><div class="empty-icon">📦</div><div class="empty-text">Keine Pakete vorhanden</div><div class="empty-sub">Erstelle ein Paket und weise Instanzen zu</div></div>`; return; }
-  // load instance counts
+  if (!allPkgs.length) {
+    grid.innerHTML = `<div class="empty-state"><div class="empty-icon"><i class="ti ti-package" style="font-size:32px"></i></div><div class="empty-text">Keine Pakete vorhanden</div><div class="empty-sub">Erstelle ein Paket und weise Instanzen zu</div></div>`;
+    return;
+  }
+  // Load instance ids and users in parallel for each package
   const pkgsWithData = await Promise.all(allPkgs.map(async p => {
-    const instanceIds = await api('GET', `/api/packages/${p.id}/instances`);
-    return { ...p, instanceIds };
+    const [instanceIds, users] = await Promise.all([
+      api('GET', `/api/packages/${p.id}/instances`),
+      api('GET', `/api/packages/${p.id}/users`).catch(() => [])
+    ]);
+    return { ...p, instanceIds, users };
   }));
-  grid.innerHTML = pkgsWithData.map(p => `
-    <div class="pkg-card">
-      <div style="display:flex;align-items:center;justify-content:space-between">
-        <div class="pkg-name">📦 ${esc(p.name)}</div>
-        <div style="display:flex;gap:4px">
-          <button class="btn btn-ghost btn-sm" onclick="editPackage('${p.id}')">✎</button>
-          <button class="btn btn-danger btn-sm" onclick="deletePackage('${p.id}')">✕</button>
+  grid.innerHTML = pkgsWithData.map(p => {
+    const userChips = p.users.length
+      ? p.users.slice(0, 4).map(u => `<span class="pkg-user-chip">${esc(u.username)}</span>`).join('')
+        + (p.users.length > 4 ? `<span class="pkg-more-chip">+${p.users.length - 4}</span>` : '')
+      : `<span style="font-size:10px;color:var(--text-muted)">Noch keine Kunden</span>`;
+    return `
+    <div class="pkg-card" onclick="openPackageDetail('${p.id}')">
+      <div class="pkg-card-header">
+        <div class="pkg-icon-wrap"><i class="ti ti-package"></i></div>
+        <div style="flex:1;min-width:0">
+          <div class="pkg-name">${esc(p.name)}</div>
+          <div class="pkg-desc">${esc(p.description || 'Keine Beschreibung')}</div>
+        </div>
+        <div class="pkg-card-actions">
+          <button class="btn btn-ghost btn-sm" title="Bearbeiten" onclick="event.stopPropagation();editPackage('${p.id}')"><i class="ti ti-pencil"></i></button>
+          <button class="btn btn-danger btn-sm" title="Löschen" onclick="event.stopPropagation();deletePackage('${p.id}')"><i class="ti ti-trash"></i></button>
         </div>
       </div>
-      <div class="pkg-desc">${esc(p.description||'')}</div>
-      <div class="pkg-stats">
-        🖥 ${p.instanceIds.length} Instanz(en) zugewiesen
-        <br>📅 Erstellt: ${new Date(p.created_at).toLocaleDateString('de-DE')}
+      <div class="pkg-stats-row">
+        <div class="pkg-stat"><i class="ti ti-users"></i><span><strong>${p.users.length}</strong> Kunden</span></div>
+        <div class="pkg-stat"><i class="ti ti-server"></i><span><strong>${p.instanceIds.length}</strong> Instanzen</span></div>
+        <div class="pkg-stat" style="margin-left:auto"><i class="ti ti-calendar"></i><span>${new Date(p.created_at).toLocaleDateString('de-DE')}</span></div>
       </div>
-      <button class="btn btn-ghost btn-sm" style="width:100%" onclick="openPackageModal('${p.id}')">Instanzen & Kunden verwalten</button>
-    </div>`).join('');
+      <div class="pkg-user-chips">${userChips}</div>
+    </div>`;
+  }).join('');
 }
 
 async function openPackageModal(id=null) {
@@ -2349,6 +2766,83 @@ async function deletePackage(id) {
   await loadPackages();
 }
 
+async function openPackageDetail(id) {
+  const p = allPkgs.find(x => x.id === id);
+  if (!p) return;
+  document.getElementById('pkg-detail-name').textContent = p.name;
+  document.getElementById('pkg-detail-desc-head').textContent = p.description || 'Keine Beschreibung';
+  document.getElementById('pkg-detail-edit-btn').onclick = () => { closePkgDetail(); editPackage(id); };
+  document.getElementById('pkg-detail-customers').innerHTML = '<div style="color:var(--text-muted);font-size:12px;text-align:center;padding:20px">Laden...</div>';
+  document.getElementById('pkg-detail-instances').innerHTML = '<div style="color:var(--text-muted);font-size:12px;text-align:center;padding:20px">Laden...</div>';
+  document.getElementById('pkg-detail-modal').style.display = 'flex';
+
+  // Fetch data in parallel
+  const [users, instanceIds] = await Promise.all([
+    api('GET', `/api/packages/${id}/users`).catch(() => []),
+    api('GET', `/api/packages/${id}/instances`).catch(() => [])
+  ]);
+
+  // Render customers
+  const custEl = document.getElementById('pkg-detail-customers');
+  if (!users.length) {
+    custEl.innerHTML = '<div style="color:var(--text-muted);font-size:12px;text-align:center;padding:20px;background:var(--bg);border-radius:6px">Noch keine Kunden zugewiesen</div>';
+  } else {
+    custEl.innerHTML = users.map(u => `
+      <div class="pkg-detail-row">
+        <div style="width:30px;height:30px;border-radius:50%;background:rgba(78,205,196,0.15);border:1px solid rgba(78,205,196,0.25);display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--blue);font-weight:700;flex-shrink:0">${esc(u.username[0].toUpperCase())}</div>
+        <div style="flex:1;min-width:0">
+          <div class="username">${esc(u.username)}</div>
+          <div class="email">${esc(u.email || '')}</div>
+        </div>
+        <span class="role-badge customer">Kunde</span>
+      </div>`).join('');
+  }
+
+  // Render instances (cross-reference with global instances list)
+  const instEl = document.getElementById('pkg-detail-instances');
+  if (!instanceIds.length) {
+    instEl.innerHTML = '<div style="color:var(--text-muted);font-size:12px;text-align:center;padding:20px;background:var(--bg);border-radius:6px">Keine Instanzen zugewiesen</div>';
+  } else {
+    if (!instances.length) await fetchInstances();
+    const assigned = instanceIds.map(iid => instances.find(i => i.id === iid)).filter(Boolean);
+    const missing = instanceIds.length - assigned.length;
+    instEl.innerHTML = assigned.map(i => {
+      const statusColor = i.status === 'running' ? 'var(--green)' : 'var(--text-muted)';
+      const statusIcon  = i.status === 'running' ? 'ti-circle-filled' : 'ti-circle';
+      return `
+        <div class="pkg-detail-inst" onclick="goToInstance(${JSON.stringify(i.name)})" title="Zur Instanz wechseln">
+          <i class="ti ${statusIcon}" style="font-size:10px;color:${statusColor};flex-shrink:0"></i>
+          <div style="flex:1;min-width:0">
+            <div class="iname">${esc(i.name)}</div>
+            <div style="font-size:10px;color:var(--text-muted)">Port ${i.n8n_port || '—'}</div>
+          </div>
+          <div class="isrv">${esc(i.server_name || '')}</div>
+          <i class="ti ti-arrow-right" style="font-size:12px;color:var(--text-muted);flex-shrink:0"></i>
+        </div>`;
+    }).join('') + (missing > 0 ? `<div style="font-size:10px;color:var(--text-muted);text-align:center;padding:6px">${missing} Instanz(en) nicht gefunden</div>` : '');
+  }
+}
+
+function closePkgDetail() {
+  document.getElementById('pkg-detail-modal').style.display = 'none';
+}
+
+function goToInstance(name) {
+  closePkgDetail();
+  showPage('instances');
+  const searchEl = document.getElementById('inst-search');
+  if (searchEl) {
+    searchEl.value = name;
+    renderInstancesList();
+    // Scroll the matching card into view after render
+    setTimeout(() => {
+      const inst = instances.find(i => i.name === name);
+      const card = inst ? document.getElementById('icard-' + inst.id) : null;
+      if (card) card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 120);
+  }
+}
+
 // ── Navigation ───────────────────────────────────────────────
 const PAGE_TITLES = { dashboard:'Dashboard', instances:'Instanzen', servers:'Server', monitor:'Live Monitor', katalog:'Image-Katalog', vorlagen:'Vorlagen', settings:'Einstellungen', users:'Benutzer', packages:'Pakete', requests:'Anfragen', logs:'Aktivitäts-Log' };
 
@@ -2372,19 +2866,451 @@ function showPage(name) {
   if (name === 'dashboard') { fetchUkStatuses(); renderNotes(); }
   if (name === 'instances') { fetchUkStatuses(); fetchServerStats(); }
   // close sidebar on mobile after navigation
-  if (window.innerWidth <= 768) closeSidebar();
+  if (window.innerWidth <= 768) { closeSidebar(); fabNavFlash(); updateActFab(name); }
 }
 
 function toggleSidebar() {
-  const sb = document.getElementById('sidebar') || document.querySelector('.sidebar');
+  const sb = document.querySelector('.sidebar');
   const ov = document.getElementById('sidebar-overlay');
   const open = sb.classList.toggle('open');
   ov.classList.toggle('open', open);
+  // Lock body scroll while sidebar is open on mobile
+  document.body.style.overflow = open ? 'hidden' : '';
 }
 
 function closeSidebar() {
   document.querySelector('.sidebar').classList.remove('open');
   document.getElementById('sidebar-overlay').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+// ── FAB Navigation ────────────────────────────────────────────
+let fabNavEnabled   = localStorage.getItem('fab_nav') === '1';
+let fabNavIsOpen    = false;
+let fabNavDragging  = false;
+let fabNavHoveredPg = null;
+let fabNavLPTimer   = null;
+let fabNavHideTimer = null;
+
+const FAB_NAV_PAGES = [
+  /* Order mirrors the sidebar exactly */
+  { page:'dashboard', icon:'ti-layout-dashboard', label:'Dashboard'               },
+  { page:'instances', icon:'ti-server',           label:'Instanzen'               },
+  { page:'servers',   icon:'ti-server-2',         label:'Server',     admin:true  },
+  { page:'monitor',   icon:'ti-activity',         label:'Monitor'                 },
+  { page:'katalog',   icon:'ti-packages',         label:'Katalog',    admin:true  },
+  { page:'vorlagen',  icon:'ti-template',         label:'Vorlagen',   admin:true  },
+  { page:'settings',  icon:'ti-settings',         label:'Einstellungen',admin:true},
+  { page:'users',     icon:'ti-users',            label:'Benutzer',   admin:true  },
+  { page:'packages',  icon:'ti-box',              label:'Pakete',     admin:true  },
+  { page:'requests',  icon:'ti-bell',             label:'Anfragen'                },
+  { page:'logs',      icon:'ti-list-details',     label:'Logs',       admin:true  },
+];
+
+/* Build item circles and position them on a two-ring arc */
+function initFabNav() {
+  const isAdmin  = currentUser?.role === 'admin';
+  const items    = FAB_NAV_PAGES.filter(it => !it.admin || isAdmin);
+  const N        = items.length;
+  const container = document.getElementById('fab-nav-items');
+  if (!container) return;
+  container.innerHTML = '';
+
+  const twoRings  = N > 5;
+  const innerCnt  = twoRings ? Math.ceil(N / 2) : N;
+  const outerCnt  = twoRings ? N - innerCnt : 0;
+
+  items.forEach((item, i) => {
+    const inner   = !twoRings || i < innerCnt;
+    const ringIdx = inner ? i : i - innerCnt;
+    const ringSz  = inner ? innerCnt : outerCnt;
+    const r       = inner ? (twoRings ? 90 : 108) : 155;
+
+    /* Arc: 200° → 340° (all items end up above the button) */
+    const deg = 200 + (ringIdx / Math.max(ringSz - 1, 1)) * 140;
+    const rad = deg * Math.PI / 180;
+    const tx  = (r * Math.cos(rad)).toFixed(1);
+    const ty  = (r * Math.sin(rad)).toFixed(1); // negative = upward
+
+    const el = document.createElement('button');
+    el.className = 'fab-nav-item';
+    el.setAttribute('data-page',  item.page);
+    el.setAttribute('data-label', item.label);
+    el.style.setProperty('--tx', tx + 'px');
+    el.style.setProperty('--ty', ty + 'px');
+    el.style.transitionDelay = (i * 28) + 'ms';
+    el.innerHTML = `<i class="ti ${item.icon}"></i>`;
+    el.addEventListener('click', () => { showPage(item.page); closeFabNav(); });
+    container.appendChild(el);
+  });
+
+  applyFabNavState();
+  setupFabNavScroll();
+}
+
+/* Show or hide the FAB nav based on the setting */
+function applyFabNavState() {
+  if (window.innerWidth > 768) return;
+  const nav = document.getElementById('fab-nav');
+  if (!nav) return;
+  nav.style.display = fabNavEnabled ? 'flex' : 'none';
+  // Update hamburger visibility
+  const ham = document.querySelector('.hamburger');
+  if (ham) ham.style.visibility = fabNavEnabled ? 'hidden' : '';
+  // Hide original deploy FAB when action FAB takes over
+  const deployFab = document.querySelector('.fab-deploy');
+  if (deployFab) deployFab.style.display = fabNavEnabled ? 'none' : '';
+  // Show/hide action FAB for current page
+  const curPage = document.querySelector('.page.active')?.id?.replace('page-','') || 'dashboard';
+  updateActFab(curPage);
+  // Sync settings toggle
+  const sw = document.getElementById('fab-nav-sw');
+  if (sw) sw.classList.toggle('on', fabNavEnabled);
+}
+
+/* Open the radial menu */
+function openFabNav() {
+  if (fabNavIsOpen) return;
+  fabNavIsOpen = true;
+  clearTimeout(fabNavHideTimer);
+  const nav   = document.getElementById('fab-nav');
+  const btn   = document.getElementById('fab-nav-btn');
+  const items = document.getElementById('fab-nav-items');
+  const ov    = document.getElementById('fab-nav-overlay');
+  nav.classList.add('fab-nav-show', 'fab-nav-open');
+  btn.classList.add('fab-open');
+  items.classList.add('fab-items-open');
+  ov.classList.add('fab-ov-open');
+
+  // Highlight current page
+  const curPage = document.querySelector('.page.active')?.id?.replace('page-', '');
+  document.querySelectorAll('.fab-nav-item').forEach(el => {
+    el.classList.toggle('fab-current', el.getAttribute('data-page') === curPage);
+  });
+}
+
+/* Close the radial menu */
+function closeFabNav() {
+  if (!fabNavIsOpen) return;
+  fabNavIsOpen    = false;
+  fabNavDragging  = false;
+  fabNavHoveredPg = null;
+  const btn   = document.getElementById('fab-nav-btn');
+  const items = document.getElementById('fab-nav-items');
+  const ov    = document.getElementById('fab-nav-overlay');
+  const hint  = document.getElementById('fab-nav-hint');
+  btn.classList.remove('fab-open');
+  items.classList.remove('fab-items-open');
+  ov.classList.remove('fab-ov-open');
+  hint.classList.remove('fab-hint-show');
+  document.querySelectorAll('.fab-nav-item').forEach((el, i) => {
+    el.classList.remove('fab-hovered', 'fab-current');
+    el.style.transitionDelay = '0ms';
+  });
+  setTimeout(() => {
+    document.querySelectorAll('.fab-nav-item').forEach((el, i) => {
+      el.style.transitionDelay = (i * 28) + 'ms';
+    });
+  }, 250);
+  // Auto-hide after close
+  fabNavHideTimer = setTimeout(() => {
+    document.getElementById('fab-nav')?.classList.remove('fab-nav-show');
+  }, 1800);
+}
+
+/* Briefly flash the FAB button on page change — reminds user it exists */
+function fabNavFlash() {
+  if (!fabNavEnabled || window.innerWidth > 768) return;
+  const nav = document.getElementById('fab-nav');
+  if (!nav) return;
+  nav.classList.add('fab-nav-show');
+  clearTimeout(fabNavHideTimer);
+  fabNavHideTimer = setTimeout(() => {
+    if (!fabNavIsOpen) nav.classList.remove('fab-nav-show');
+  }, 2200);
+}
+
+/* Touch: short tap = toggle menu, long press (≥240ms) = drag mode */
+function fabNavTouchStart(e) {
+  e.preventDefault();
+  fabNavDragging  = false;
+  fabNavHoveredPg = null;
+  clearTimeout(fabNavLPTimer);
+
+  fabNavLPTimer = setTimeout(() => {
+    if (navigator.vibrate) navigator.vibrate(25);
+    openFabNav();
+    fabNavDragging = true;
+  }, 240);
+
+  // Attach global listeners for drag tracking
+  document.addEventListener('touchmove', fabNavTouchMove, { passive: false });
+  document.addEventListener('touchend',  fabNavTouchEndGlobal, { once: true });
+}
+
+function fabNavTouchEnd(e) {
+  // handled by fabNavTouchEndGlobal
+}
+
+function fabNavTouchEndGlobal(e) {
+  clearTimeout(fabNavLPTimer);
+  document.removeEventListener('touchmove', fabNavTouchMove);
+
+  if (fabNavDragging) {
+    const pg = fabNavHoveredPg;
+    closeFabNav();
+    if (pg) showPage(pg);
+  } else {
+    // Short tap
+    if (fabNavIsOpen) closeFabNav();
+    else openFabNav();
+  }
+  fabNavDragging  = false;
+  fabNavHoveredPg = null;
+}
+
+function fabNavTouchMove(e) {
+  if (!fabNavDragging || !fabNavIsOpen) return;
+  e.preventDefault();
+  const touch = e.touches[0];
+  let best = null, bestDist = 52; // px activation radius
+
+  document.querySelectorAll('.fab-nav-item').forEach(el => {
+    const rc = el.getBoundingClientRect();
+    const cx = rc.left + rc.width  / 2;
+    const cy = rc.top  + rc.height / 2;
+    const d  = Math.hypot(touch.clientX - cx, touch.clientY - cy);
+    if (d < bestDist) { bestDist = d; best = el; }
+  });
+
+  document.querySelectorAll('.fab-nav-item').forEach(el => el.classList.remove('fab-hovered'));
+  const hint = document.getElementById('fab-nav-hint');
+  if (best) {
+    best.classList.add('fab-hovered');
+    fabNavHoveredPg     = best.getAttribute('data-page');
+    hint.textContent    = best.getAttribute('data-label');
+    hint.classList.add('fab-hint-show');
+  } else {
+    fabNavHoveredPg = null;
+    hint.classList.remove('fab-hint-show');
+  }
+}
+
+/* Show FAB on scroll */
+function setupFabNavScroll() {
+  const content = document.querySelector('.content');
+  if (!content || content._fabScrollBound) return;
+  content._fabScrollBound = true;
+  content.addEventListener('scroll', () => {
+    if (!fabNavEnabled || window.innerWidth > 768 || fabNavIsOpen) return;
+    const nav = document.getElementById('fab-nav');
+    if (!nav) return;
+    nav.classList.add('fab-nav-show');
+    clearTimeout(fabNavHideTimer);
+    fabNavHideTimer = setTimeout(() => {
+      if (!fabNavIsOpen) nav.classList.remove('fab-nav-show');
+    }, 2000);
+  }, { passive: true });
+}
+
+/* Toggle in settings page */
+function toggleFabNav() {
+  fabNavEnabled = !fabNavEnabled;
+  localStorage.setItem('fab_nav', fabNavEnabled ? '1' : '0');
+  applyFabNavState();
+  if (fabNavEnabled) {
+    initFabNav();
+    fabNavFlash();
+  }
+  const sw = document.getElementById('fab-nav-sw');
+  if (sw) sw.classList.toggle('on', fabNavEnabled);
+}
+
+// ── Action FAB (context-aware, per page) ─────────────────────
+let actFabOpen     = false;
+let actFabDragging = false;
+let actFabHovPg    = null;
+let actFabLPTimer  = null;
+let actFabCurCfg   = null;
+
+/* Page → action config */
+const ACT_FAB_CFG = {
+  dashboard: {
+    icon:'ti-notes',      label:'Neue Notiz',
+    fn:()=>{ addNote(); },
+  },
+  instances: {
+    icon:'ti-rocket',     label:'Deploy',    admin:true,
+    fn:()=>{ openDeployModal(); },
+    sub:[
+      { icon:'ti-brand-docker', label:'Image',   fn:()=>{ openDeployModal(); setTimeout(()=>switchDeployTab('image'),80);   } },
+      { icon:'ti-file-zip',     label:'Compose', fn:()=>{ openDeployModal(); setTimeout(()=>switchDeployTab('compose'),80); } },
+      { icon:'ti-template',     label:'Vorlage', fn:()=>{ openDeployModal(); setTimeout(()=>switchDeployTab('template'),80);} },
+    ],
+  },
+  servers: {
+    icon:'ti-server-2',   label:'Server hinzufügen', admin:true,
+    fn:()=>{ openServerModal(); },
+  },
+  katalog: {
+    icon:'ti-plus',       label:'Image hinzufügen',  admin:true,
+    fn:()=>{ openCatalogModal(); },
+  },
+  users: {
+    icon:'ti-user-plus',  label:'Benutzer anlegen',  admin:true,
+    fn:()=>{ openUserModal(); },
+  },
+  packages: {
+    icon:'ti-package',    label:'Paket erstellen',   admin:true,
+    fn:()=>{ openPackageModal(); },
+  },
+};
+
+/* Called on every page change — swaps icon/action and builds sub-items */
+function updateActFab(page) {
+  if (!fabNavEnabled || window.innerWidth > 768) return;
+  const isAdmin = currentUser?.role === 'admin';
+  const el = document.getElementById('fab-action');
+  if (!el) return;
+
+  const cfg = ACT_FAB_CFG[page];
+  const visible = cfg && (!cfg.admin || isAdmin);
+  el.style.display = visible ? 'flex' : 'none';
+  if (!visible) { actFabCurCfg = null; return; }
+
+  actFabCurCfg = cfg;
+  /* Update icon */
+  const icon = document.getElementById('fab-action-icon');
+  if (icon) { icon.className = `ti ${cfg.icon}`; }
+
+  /* Rebuild sub-items (placed in a fan from left → top, r=78px) */
+  const sub = cfg.sub || [];
+  const container = document.getElementById('fab-action-items');
+  container.innerHTML = '';
+  sub.forEach((s, i) => {
+    /* Arc 200°→265° so items fan from left-up to directly-above */
+    const deg = 200 + (i / Math.max(sub.length - 1, 1)) * 65;
+    const rad = deg * Math.PI / 180;
+    const tx  = (78 * Math.cos(rad)).toFixed(1);
+    const ty  = (78 * Math.sin(rad)).toFixed(1);
+
+    const btn = document.createElement('button');
+    btn.className = 'fab-action-item';
+    btn.setAttribute('data-label', s.label);
+    btn.style.setProperty('--tx', tx + 'px');
+    btn.style.setProperty('--ty', ty + 'px');
+    btn.style.transitionDelay = (i * 35) + 'ms';
+    btn.innerHTML = `<i class="ti ${s.icon}"></i>`;
+    btn.addEventListener('click', () => { closeActFab(); s.fn(); });
+    container.appendChild(btn);
+  });
+}
+
+/* Open sub-menu */
+function openActFab() {
+  if (actFabOpen || !actFabCurCfg?.sub?.length) return;
+  actFabOpen = true;
+  document.getElementById('fab-action-btn').classList.add('fab-sub-active');
+  document.getElementById('fab-action-items').classList.add('fab-sub-open');
+  document.getElementById('fab-action-overlay').classList.add('fab-ov-open');
+}
+
+/* Close sub-menu */
+function closeActFab() {
+  if (!actFabOpen) return;
+  actFabOpen     = false;
+  actFabDragging = false;
+  actFabHovPg    = null;
+  document.getElementById('fab-action-btn').classList.remove('fab-sub-active');
+  document.getElementById('fab-action-items').classList.remove('fab-sub-open');
+  document.getElementById('fab-action-overlay').classList.remove('fab-ov-open');
+  document.getElementById('fab-action-hint').classList.remove('fab-hint-show');
+  document.querySelectorAll('.fab-action-item').forEach((el,i) => {
+    el.classList.remove('fab-hovered');
+    el.style.transitionDelay = '0ms';
+  });
+  setTimeout(() => {
+    document.querySelectorAll('.fab-action-item').forEach((el,i) => {
+      el.style.transitionDelay = (i * 35) + 'ms';
+    });
+  }, 250);
+}
+
+/* Short tap: run primary action */
+function actFabClick() {
+  if (!actFabDragging && actFabCurCfg) {
+    if (actFabOpen) { closeActFab(); return; }
+    actFabCurCfg.fn();
+  }
+}
+
+/* Touch start: detect long-press */
+function actFabTouchStart(e) {
+  e.preventDefault();
+  actFabDragging = false;
+  actFabHovPg    = null;
+  if (!actFabCurCfg?.sub?.length) return; // no sub-items → skip long press
+
+  actFabLPTimer = setTimeout(() => {
+    if (navigator.vibrate) navigator.vibrate(25);
+    openActFab();
+    actFabDragging = true;
+  }, 240);
+
+  document.addEventListener('touchmove', actFabTouchMove, { passive: false });
+  document.addEventListener('touchend',  actFabTouchEndGlobal, { once: true });
+}
+
+function actFabTouchEnd(e) { /* handled by global */ }
+
+function actFabTouchEndGlobal(e) {
+  clearTimeout(actFabLPTimer);
+  document.removeEventListener('touchmove', actFabTouchMove);
+
+  if (actFabDragging) {
+    const fn = actFabHovPg;
+    closeActFab();
+    if (fn) fn();
+  } else {
+    actFabClick();
+  }
+  actFabDragging = false;
+  actFabHovPg    = null;
+}
+
+function actFabTouchMove(e) {
+  if (!actFabDragging || !actFabOpen) return;
+  e.preventDefault();
+  const touch = e.touches[0];
+  let best = null, bestDist = 52;
+
+  document.querySelectorAll('.fab-action-item').forEach(el => {
+    const rc = el.getBoundingClientRect();
+    const d  = Math.hypot(touch.clientX - rc.left - rc.width/2,
+                          touch.clientY - rc.top  - rc.height/2);
+    if (d < bestDist) { bestDist = d; best = el; }
+  });
+
+  document.querySelectorAll('.fab-action-item').forEach(el => el.classList.remove('fab-hovered'));
+  const hint = document.getElementById('fab-action-hint');
+  if (best) {
+    best.classList.add('fab-hovered');
+    const idx  = [...document.querySelectorAll('.fab-action-item')].indexOf(best);
+    actFabHovPg = actFabCurCfg.sub[idx]?.fn || null;
+    hint.textContent = best.getAttribute('data-label');
+    hint.classList.add('fab-hint-show');
+  } else {
+    actFabHovPg = null;
+    hint.classList.remove('fab-hint-show');
+  }
+}
+
+function toggleMobileFilter() {
+  const body = document.getElementById('inst-filter-body');
+  const btn  = document.getElementById('mob-filter-btn');
+  const open = body.classList.toggle('open');
+  btn.classList.toggle('active', open);
+  btn.querySelector('i').className = open ? 'ti ti-x' : 'ti ti-adjustments-horizontal';
 }
 
 // ── Server Modal ─────────────────────────────────────────────
@@ -2627,7 +3553,7 @@ function renderTemplatePicker() {
   el.innerHTML = templates.map(t => `
     <div style="background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:12px;display:flex;align-items:center;gap:12px">
       <div style="flex:1">
-        <div style="font-weight:700;color:#fff">${esc(t.name)}</div>
+        <div style="font-weight:700;color:var(--text)">${esc(t.name)}</div>
         <div style="font-size:11px;color:var(--text-muted)">${t.type==='compose'?'📦 Compose':`⬡ ${esc(t.config?.image||'')}`}</div>
       </div>
       <button class="btn btn-green btn-sm" onclick="deployFromTemplate('${t.id}','dt-server')">▶ Deploy</button>
@@ -3023,7 +3949,7 @@ function renderRequests() {
       <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
         <div style="flex:1;min-width:200px">
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
-            <span style="font-weight:700;color:#fff">${esc(r.catalog_name)}</span>
+            <span style="font-weight:700;color:var(--text)">${esc(r.catalog_name)}</span>
             <span style="font-size:10px;color:var(--text-muted)">${esc(r.catalog_image)}</span>
           </div>
           ${isAdmin ? `<div style="font-size:11px;color:var(--text-muted)">👤 ${esc(r.username || '')}</div>` : ''}
@@ -3054,11 +3980,10 @@ async function openApproveModal(reqId, catalogName, catalogImage, userId) {
   const pkgSel = document.getElementById('approve-package');
   pkgSel.innerHTML = '<option value="">Lade Pakete...</option>';
   try {
-    const pkgs = await api('GET', `/api/users/${userId}/packages`);
-    pkgSel.innerHTML = pkgs.length
-      ? pkgs.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join('')
-      : '<option value="">Keine Pakete für diesen Kunden</option>';
-  } catch { pkgSel.innerHTML = '<option value="">Fehler beim Laden</option>'; }
+    const pkgs = await api('GET', '/api/packages');
+    pkgSel.innerHTML = '<option value="">(Kein Paket)</option>'
+      + (Array.isArray(pkgs) ? pkgs : []).map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join('');
+  } catch { pkgSel.innerHTML = '<option value="">(Kein Paket)</option>'; }
 
   document.getElementById('approve-modal').style.display = 'flex';
 }
@@ -3072,8 +3997,7 @@ async function submitApproval() {
   const name      = document.getElementById('approve-name').value.trim();
   const server_id = document.getElementById('approve-server').value;
   const package_id = document.getElementById('approve-package').value;
-  if (!name)       { toast('Instanzname erforderlich', 'error'); return; }
-  if (!package_id) { toast('Paket auswählen', 'error'); return; }
+  if (!name) { toast('Instanzname erforderlich', 'error'); return; }
 
   try {
     const res = await api('PUT', `/api/instance-requests/${reqId}/approve`, { server_id, name, package_id });
@@ -3149,7 +4073,7 @@ function openRequestCatalog() {
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
           ${catalogIconHtml(c.name)}
           <div>
-            <div style="font-weight:700;color:#fff;font-size:13px">${esc(c.name)}</div>
+            <div style="font-weight:700;color:var(--text);font-size:13px">${esc(c.name)}</div>
             <div style="font-size:10px;color:var(--text-muted)">${esc(c.category)}</div>
           </div>
         </div>
@@ -3167,5 +4091,36 @@ function openRequestCatalog() {
   else fetchCatalog().then(() => render());
 }
 </script>
+
+<!-- Mobile FAB: Deploy -->
+<button class="fab-deploy admin-only" onclick="openDeployModal()" title="Deployen" aria-label="Deploy">
+  <i class="ti ti-rocket"></i>
+</button>
+
+<!-- Mobile FAB: Context Action (opt-in, only when FAB nav is active) -->
+<div id="fab-action" class="fab-action">
+  <div class="fab-action-overlay" id="fab-action-overlay" onclick="closeActFab()"></div>
+  <div class="fab-action-items"   id="fab-action-items"></div>
+  <div class="fab-action-hint"    id="fab-action-hint"></div>
+  <button class="fab-action-btn"  id="fab-action-btn"
+    ontouchstart="actFabTouchStart(event)"
+    ontouchend="actFabTouchEnd(event)"
+    onclick="actFabClick()">
+    <i class="ti ti-plus" id="fab-action-icon"></i>
+  </button>
+</div>
+
+<!-- Mobile FAB: Navigation (opt-in via settings) -->
+<div id="fab-nav" class="fab-nav">
+  <div class="fab-nav-overlay" id="fab-nav-overlay" onclick="closeFabNav()"></div>
+  <div class="fab-nav-items" id="fab-nav-items"></div>
+  <div class="fab-nav-hint" id="fab-nav-hint"></div>
+  <button class="fab-nav-btn" id="fab-nav-btn" aria-label="Navigation"
+    ontouchstart="fabNavTouchStart(event)"
+    ontouchend="fabNavTouchEnd(event)">
+    <i class="ti ti-compass"></i>
+  </button>
+</div>
+
 </body>
 </html>
