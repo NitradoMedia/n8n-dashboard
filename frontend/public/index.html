@@ -79,7 +79,29 @@
   .nav-item.active { color: var(--accent); border-left-color: var(--accent); background: rgba(232,99,10,0.05); }
   .nav-icon { width: 18px; text-align: center; font-size: 15px; display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; }
   .nav-icon i { font-size: 15px; line-height: 1; }
+  .nav-divider { position:relative; height:1px; background:var(--border); margin:6px 16px; flex-shrink:0; }
+  .nav-divider[data-label]:not([data-label=""])::after { content:attr(data-label); position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); background:var(--surface); padding:0 7px; font-size:9px; color:var(--text-muted); text-transform:uppercase; letter-spacing:1.2px; white-space:nowrap; }
+  .nav-item-link { color:var(--text-dim); }
+  .nav-item-link .nav-favicon { width:14px; height:14px; border-radius:2px; object-fit:contain; flex-shrink:0; }
   .sidebar-footer { padding: 12px 16px; border-top: 1px solid var(--border); font-size: 10px; color: var(--text-muted); }
+
+  /* ── Sidebar Editor (Settings) ─────────────────────────── */
+  .sbe-list { display:flex; flex-direction:column; gap:5px; }
+  .sbe-item { display:flex; align-items:center; gap:8px; padding:8px 10px; background:var(--bg); border:1px solid var(--border); border-radius:6px; cursor:default; user-select:none; transition:border-color 0.15s,background 0.15s; }
+  .sbe-item.sbe-drag-over { border-color:var(--accent); background:rgba(232,99,10,0.07); }
+  .sbe-item.sbe-dragging { opacity:0.4; }
+  .sbe-item.sbe-divider { border-style:dashed; }
+  .sbe-handle { color:var(--text-muted); cursor:grab; font-size:15px; line-height:1; padding:2px 4px; flex-shrink:0; }
+  .sbe-handle:active { cursor:grabbing; }
+  .sbe-icon { width:20px; text-align:center; font-size:14px; flex-shrink:0; }
+  .sbe-label { flex:1; font-size:12px; color:var(--text); min-width:0; }
+  .sbe-url { font-size:10px; color:var(--text-muted); max-width:110px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex-shrink:0; }
+  .sbe-actions { display:flex; gap:4px; flex-shrink:0; }
+  .sbe-btn { background:none; border:none; cursor:pointer; color:var(--text-muted); font-size:13px; padding:3px 5px; border-radius:4px; line-height:1; transition:color 0.15s,background 0.15s; }
+  .sbe-btn:hover { color:var(--text); background:rgba(255,255,255,0.06); }
+  .sbe-btn.del:hover { color:var(--red); }
+  .sbe-add-link-form { background:var(--bg); border:1px solid var(--border); border-radius:6px; padding:12px; display:none; flex-direction:column; gap:8px; margin-top:4px; }
+  .sbe-add-link-form.open { display:flex; }
 
   /* Main */
   .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
@@ -874,19 +896,7 @@
     </div>
     <div class="logo-sub">Deployment Dashboard</div>
   </div>
-  <div class="nav">
-    <div class="nav-item active" onclick="showPage('dashboard')"><span class="nav-icon"><i class="ti ti-layout-dashboard"></i></span> Dashboard</div>
-    <div class="nav-item" onclick="showPage('instances')"><span class="nav-icon"><i class="ti ti-server"></i></span> Instances</div>
-    <div class="nav-item admin-only" onclick="showPage('servers')"><span class="nav-icon"><i class="ti ti-server-2"></i></span> Server</div>
-    <div class="nav-item" onclick="showPage('monitor')"><span class="nav-icon"><i class="ti ti-activity"></i></span> Monitor</div>
-    <div class="nav-item admin-only" onclick="showPage('katalog')"><span class="nav-icon"><i class="ti ti-packages"></i></span> Image-Katalog</div>
-    <div class="nav-item admin-only" onclick="showPage('vorlagen')"><span class="nav-icon"><i class="ti ti-template"></i></span> Vorlagen</div>
-    <div class="nav-item admin-only" onclick="showPage('settings')"><span class="nav-icon"><i class="ti ti-settings"></i></span> Einstellungen</div>
-    <div class="nav-item admin-only" onclick="showPage('users')"><span class="nav-icon"><i class="ti ti-users"></i></span> Benutzer</div>
-    <div class="nav-item admin-only" onclick="showPage('packages')"><span class="nav-icon"><i class="ti ti-box"></i></span> Pakete</div>
-    <div class="nav-item" onclick="showPage('requests')"><span class="nav-icon"><i class="ti ti-bell"></i></span> Anfragen <span id="req-badge" style="display:none;background:var(--accent);color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;margin-left:auto"></span></div>
-    <div class="nav-item admin-only" onclick="showPage('logs')"><span class="nav-icon"><i class="ti ti-list-details"></i></span> Logs</div>
-  </div>
+  <div class="nav" id="sidebar-nav"></div>
   <div class="sidebar-footer">NitradoMedia Fleet v2.0<br><span id="footer-time"></span></div>
 </nav>
 <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleSidebar()"></div>
@@ -1137,6 +1147,37 @@
               <div class="toggle-desc">Kreismenü statt Sidebar-Schublade (nur auf Mobilgeräten aktiv)</div>
             </div>
             <button class="toggle-sw" id="fab-nav-sw" onclick="toggleFabNav()"></button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Menü anpassen -->
+      <div class="card" style="margin-top:20px">
+        <div class="card-header">
+          <div class="card-title"><i class="ti ti-layout-sidebar" style="color:var(--accent)"></i> Menü anpassen</div>
+          <button class="btn btn-ghost btn-sm" onclick="resetSidebarConfig()" title="Zurücksetzen"><i class="ti ti-restore"></i> Reset</button>
+        </div>
+        <div class="card-body">
+          <p style="font-size:12px;color:var(--text-dim);margin-bottom:14px;line-height:1.6">
+            Reihenfolge per <strong style="color:var(--text)">Drag &amp; Drop</strong> ändern, Trennlinien einfügen oder eigene Links als Shortcuts hinzufügen. Icons werden automatisch als Favicon geladen.
+          </p>
+          <div class="sbe-list" id="sbe-list"></div>
+          <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+            <button class="btn btn-ghost btn-sm" onclick="sbeAddDivider()"><i class="ti ti-minus"></i> Trennlinie</button>
+            <button class="btn btn-ghost btn-sm" onclick="sbeToggleLinkForm()"><i class="ti ti-link"></i> Custom Link</button>
+          </div>
+          <div class="sbe-add-link-form" id="sbe-link-form">
+            <div style="font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:1px">Neuer Link</div>
+            <div style="display:flex;gap:8px">
+              <input class="form-control" id="sbe-new-label" placeholder="Name (z.B. Mein n8n)" style="flex:1">
+              <input class="form-control" id="sbe-new-url" placeholder="https://..." style="flex:2" oninput="sbePreviewFavicon()">
+            </div>
+            <div style="display:flex;gap:8px;align-items:center">
+              <img id="sbe-favicon-preview" src="" width="16" height="16" style="border-radius:2px;display:none" alt="">
+              <span id="sbe-favicon-status" style="font-size:10px;color:var(--text-muted)"></span>
+              <button class="btn btn-primary btn-sm" style="margin-left:auto" onclick="sbeAddLink()"><i class="ti ti-plus"></i> Hinzufügen</button>
+              <button class="btn btn-ghost btn-sm" onclick="sbeToggleLinkForm()">Abbrechen</button>
+            </div>
           </div>
         </div>
       </div>
@@ -1684,6 +1725,7 @@ function applyRole() {
   document.querySelectorAll('.customer-only').forEach(el => el.style.display = isAdmin ? 'none' : '');
   const userEl = document.getElementById('topbar-user');
   if (userEl) userEl.textContent = `${currentUser?.username || ''} · ${isAdmin ? 'Admin' : 'Kunde'}`;
+  renderSidebar();
   // Init FAB nav after role is known
   if (fabNavEnabled) initFabNav();
   else applyFabNavState();
@@ -2851,10 +2893,10 @@ const PAGE_TITLES = { dashboard:'Dashboard', instances:'Instanzen', servers:'Ser
 
 function showPage(name) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.querySelectorAll('.nav-item[data-page]').forEach(n => n.classList.remove('active'));
   document.getElementById('page-' + name).classList.add('active');
-  document.querySelectorAll('.nav-item').forEach(n => {
-    if (n.getAttribute('onclick') === `showPage('${name}')`) n.classList.add('active');
+  document.querySelectorAll('.nav-item[data-page]').forEach(n => {
+    n.classList.toggle('active', n.getAttribute('data-page') === name);
   });
   document.getElementById('page-title').textContent = PAGE_TITLES[name] || name;
   clearInterval(statsInterval);
@@ -2864,7 +2906,7 @@ function showPage(name) {
   if (name === 'users')    loadUsers();
   if (name === 'packages') loadPackages();
   if (name === 'requests') loadRequests();
-  if (name === 'settings') ukLoadSettings();
+  if (name === 'settings') { ukLoadSettings(); renderSidebarEditor(); }
   if (name === 'logs') loadLogs();
   if (name === 'dashboard') { fetchUkStatuses(); renderNotes(); }
   if (name === 'instances') { fetchUkStatuses(); fetchServerStats(); }
@@ -2885,6 +2927,222 @@ function closeSidebar() {
   document.querySelector('.sidebar').classList.remove('open');
   document.getElementById('sidebar-overlay').classList.remove('open');
   document.body.style.overflow = '';
+}
+
+// ── Sidebar Config ────────────────────────────────────────────
+const SIDEBAR_PAGE_DEFS = [
+  { page:'dashboard', icon:'ti-layout-dashboard', label:'Dashboard'               },
+  { page:'instances', icon:'ti-server',           label:'Instanzen'               },
+  { page:'servers',   icon:'ti-server-2',         label:'Server',     admin:true  },
+  { page:'monitor',   icon:'ti-activity',         label:'Monitor'                 },
+  { page:'katalog',   icon:'ti-packages',         label:'Katalog',    admin:true  },
+  { page:'vorlagen',  icon:'ti-template',         label:'Vorlagen',   admin:true  },
+  { page:'settings',  icon:'ti-settings',         label:'Einstellungen',admin:true},
+  { page:'users',     icon:'ti-users',            label:'Benutzer',   admin:true  },
+  { page:'packages',  icon:'ti-box',              label:'Pakete',     admin:true  },
+  { page:'requests',  icon:'ti-bell',             label:'Anfragen'                },
+  { page:'logs',      icon:'ti-list-details',     label:'Logs',       admin:true  },
+];
+
+function getDefaultSidebarConfig() {
+  return { items: SIDEBAR_PAGE_DEFS.map(p => ({ type:'page', id:p.page })) };
+}
+function loadSidebarConfig() {
+  try {
+    const raw = localStorage.getItem('sidebar_config');
+    if (raw) {
+      const cfg = JSON.parse(raw);
+      // Make sure all known pages exist (add missing ones at end)
+      const existingIds = cfg.items.filter(i => i.type==='page').map(i => i.id);
+      SIDEBAR_PAGE_DEFS.forEach(def => {
+        if (!existingIds.includes(def.page)) cfg.items.push({ type:'page', id:def.page });
+      });
+      return cfg;
+    }
+  } catch {}
+  return getDefaultSidebarConfig();
+}
+function saveSidebarConfig(cfg) {
+  localStorage.setItem('sidebar_config', JSON.stringify(cfg));
+}
+function resetSidebarConfig() {
+  if (!confirm('Menü zurücksetzen?')) return;
+  localStorage.removeItem('sidebar_config');
+  renderSidebar();
+  renderSidebarEditor();
+  toast('Menü zurückgesetzt', 'success');
+}
+function getFaviconUrl(url) {
+  try { const d = new URL(url).hostname; return `https://www.google.com/s2/favicons?domain=${d}&sz=32`; }
+  catch { return ''; }
+}
+
+function renderSidebar() {
+  const nav = document.getElementById('sidebar-nav');
+  if (!nav) return;
+  const cfg    = loadSidebarConfig();
+  const isAdmin = currentUser?.role === 'admin';
+  const activePg = document.querySelector('.page.active')?.id?.replace('page-','') || 'dashboard';
+  nav.innerHTML = '';
+
+  for (const item of cfg.items) {
+    if (item.type === 'divider') {
+      const div = document.createElement('div');
+      div.className = 'nav-divider';
+      if (item.label) div.setAttribute('data-label', item.label);
+      nav.appendChild(div);
+
+    } else if (item.type === 'page') {
+      const def = SIDEBAR_PAGE_DEFS.find(p => p.page === item.id);
+      if (!def) continue;
+      if (def.admin && !isAdmin) continue;
+      const el = document.createElement('div');
+      el.className = 'nav-item' + (def.admin ? ' admin-only' : '') + (item.id === activePg ? ' active' : '');
+      el.setAttribute('data-page', item.id);
+      el.innerHTML = `<span class="nav-icon"><i class="ti ${def.icon}"></i></span> ${def.label}`;
+      if (item.id === 'requests') {
+        const badge = document.createElement('span');
+        badge.id = 'req-badge';
+        badge.style.cssText = 'display:none;background:var(--accent);color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;margin-left:auto';
+        el.appendChild(badge);
+      }
+      el.addEventListener('click', () => showPage(item.id));
+      nav.appendChild(el);
+
+    } else if (item.type === 'link') {
+      const el = document.createElement('div');
+      el.className = 'nav-item nav-item-link';
+      const faviconUrl = item.favicon || getFaviconUrl(item.url || '');
+      el.innerHTML = `<span class="nav-icon" style="width:18px"><img class="nav-favicon" src="${faviconUrl}" width="14" height="14" onerror="this.style.display='none';this.nextSibling&&(this.nextSibling.style.display='')"><i class="ti ti-link" style="display:none;font-size:13px"></i></span> ${esc(item.label || item.url)}`;
+      el.title = item.url || '';
+      el.addEventListener('click', () => window.open(item.url, '_blank'));
+      nav.appendChild(el);
+    }
+  }
+}
+
+// ── Sidebar Editor (Settings page) ───────────────────────────
+let sbeDragSrc = null;
+
+function renderSidebarEditor() {
+  const list = document.getElementById('sbe-list');
+  if (!list) return;
+  const cfg = loadSidebarConfig();
+  list.innerHTML = '';
+
+  cfg.items.forEach((item, idx) => {
+    const el = document.createElement('div');
+    el.className = 'sbe-item' + (item.type === 'divider' ? ' sbe-divider' : '');
+    el.draggable = true;
+    el.dataset.idx = idx;
+
+    let iconHtml = '';
+    let labelHtml = '';
+    let extraHtml = '';
+
+    if (item.type === 'page') {
+      const def = SIDEBAR_PAGE_DEFS.find(p => p.page === item.id);
+      iconHtml = `<span class="sbe-icon" style="color:var(--accent)"><i class="ti ${def?.icon || 'ti-circle'}"></i></span>`;
+      labelHtml = `<span class="sbe-label">${def?.label || item.id}${def?.admin ? ' <span style="font-size:9px;color:var(--text-muted);background:rgba(232,99,10,0.15);padding:1px 5px;border-radius:4px">Admin</span>' : ''}</span>`;
+    } else if (item.type === 'divider') {
+      iconHtml = `<span class="sbe-icon" style="color:var(--text-muted)"><i class="ti ti-minus"></i></span>`;
+      labelHtml = `<input class="form-control" placeholder="Label (optional)" value="${esc(item.label||'')}" style="flex:1;font-size:11px;padding:3px 7px;height:26px" oninput="sbeUpdateDividerLabel(${idx},this.value)">`;
+    } else if (item.type === 'link') {
+      const favUrl = item.favicon || getFaviconUrl(item.url || '');
+      iconHtml = `<span class="sbe-icon"><img src="${favUrl}" width="14" height="14" style="border-radius:2px" onerror="this.src='';this.style.display='none'"><i class="ti ti-link" style="font-size:12px;color:var(--accent)"></i></span>`;
+      labelHtml = `<span class="sbe-label">${esc(item.label||'Link')}</span>`;
+      extraHtml = `<span class="sbe-url" title="${esc(item.url||'')}">${esc(item.url||'')}</span>`;
+    }
+
+    el.innerHTML = `
+      <span class="sbe-handle"><i class="ti ti-grip-vertical"></i></span>
+      ${iconHtml}${labelHtml}${extraHtml}
+      <div class="sbe-actions">
+        <button class="sbe-btn del" onclick="sbeDeleteItem(${idx})" title="Entfernen"><i class="ti ti-trash"></i></button>
+      </div>`;
+
+    // Drag events
+    el.addEventListener('dragstart', e => {
+      sbeDragSrc = idx;
+      el.classList.add('sbe-dragging');
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    el.addEventListener('dragend', () => el.classList.remove('sbe-dragging'));
+    el.addEventListener('dragover', e => { e.preventDefault(); el.classList.add('sbe-drag-over'); });
+    el.addEventListener('dragleave', () => el.classList.remove('sbe-drag-over'));
+    el.addEventListener('drop', e => {
+      e.preventDefault();
+      el.classList.remove('sbe-drag-over');
+      if (sbeDragSrc === null || sbeDragSrc === idx) return;
+      const c = loadSidebarConfig();
+      const [moved] = c.items.splice(sbeDragSrc, 1);
+      c.items.splice(idx, 0, moved);
+      saveSidebarConfig(c);
+      renderSidebarEditor();
+      renderSidebar();
+      sbeDragSrc = null;
+    });
+
+    list.appendChild(el);
+  });
+}
+
+function sbeDeleteItem(idx) {
+  const cfg = loadSidebarConfig();
+  cfg.items.splice(idx, 1);
+  saveSidebarConfig(cfg);
+  renderSidebarEditor();
+  renderSidebar();
+}
+function sbeUpdateDividerLabel(idx, val) {
+  const cfg = loadSidebarConfig();
+  if (cfg.items[idx]) cfg.items[idx].label = val;
+  saveSidebarConfig(cfg);
+  renderSidebar();
+}
+function sbeAddDivider() {
+  const cfg = loadSidebarConfig();
+  cfg.items.push({ type:'divider', id:'div_'+Date.now(), label:'' });
+  saveSidebarConfig(cfg);
+  renderSidebarEditor();
+  renderSidebar();
+}
+function sbeToggleLinkForm() {
+  const f = document.getElementById('sbe-link-form');
+  if (!f) return;
+  const open = f.classList.toggle('open');
+  if (open) { document.getElementById('sbe-new-label').value = ''; document.getElementById('sbe-new-url').value = ''; sbePreviewFavicon(); }
+}
+function sbePreviewFavicon() {
+  const url = document.getElementById('sbe-new-url')?.value.trim() || '';
+  const img = document.getElementById('sbe-favicon-preview');
+  const st  = document.getElementById('sbe-favicon-status');
+  if (!img) return;
+  const fav = getFaviconUrl(url);
+  if (fav) {
+    img.src = fav;
+    img.style.display = '';
+    img.onerror = () => { img.style.display='none'; if(st) st.textContent='Kein Favicon gefunden'; };
+    img.onload  = () => { if(st) st.textContent=''; };
+  } else {
+    img.style.display = 'none';
+    if (st) st.textContent = url ? 'Ungültige URL' : '';
+  }
+}
+function sbeAddLink() {
+  const label = document.getElementById('sbe-new-label')?.value.trim();
+  const url   = document.getElementById('sbe-new-url')?.value.trim();
+  if (!url) { toast('URL erforderlich', 'error'); return; }
+  let fullUrl = url;
+  if (!/^https?:\/\//i.test(fullUrl)) fullUrl = 'https://' + fullUrl;
+  const favicon = getFaviconUrl(fullUrl);
+  const cfg = loadSidebarConfig();
+  cfg.items.push({ type:'link', id:'link_'+Date.now(), label: label || fullUrl, url: fullUrl, favicon });
+  saveSidebarConfig(cfg);
+  sbeToggleLinkForm();
+  renderSidebarEditor();
+  renderSidebar();
+  toast('Link hinzugefügt', 'success');
 }
 
 // ── FAB Navigation ────────────────────────────────────────────
@@ -3809,16 +4067,20 @@ const LOG_META = {
   login:             { icon:'🔑', color:'#4ecdc4', label:'Login' },
   login_failed:      { icon:'⛔', color:'#ff4757', label:'Login fehlgeschlagen' },
   user_created:      { icon:'👤', color:'#3ddc84', label:'Benutzer erstellt' },
+  user_updated:      { icon:'👤', color:'#4ecdc4', label:'Benutzer bearbeitet' },
   user_deleted:      { icon:'🗑', color:'#ff4757', label:'Benutzer gelöscht' },
   instance_deployed: { icon:'🚀', color:'#3ddc84', label:'Instanz deployed' },
+  compose_deployed:  { icon:'📦', color:'#3ddc84', label:'Compose deployed' },
   instance_removed:  { icon:'🗑', color:'#ff4757', label:'Instanz gelöscht' },
   instance_start:    { icon:'▶',  color:'#3ddc84', label:'Instanz gestartet' },
   instance_stop:     { icon:'⏹', color:'#ffa502', label:'Instanz gestoppt' },
   instance_restart:  { icon:'↻',  color:'#4ecdc4', label:'Instanz neugestartet' },
+  instance_cloned:   { icon:'⎘',  color:'#a29bfe', label:'Instanz geklont' },
   package_created:   { icon:'📦', color:'#3ddc84', label:'Paket erstellt' },
   package_deleted:   { icon:'📦', color:'#ff4757', label:'Paket gelöscht' },
   request_approved:  { icon:'✅', color:'#3ddc84', label:'Anfrage freigegeben' },
   request_rejected:  { icon:'✗',  color:'#ff4757', label:'Anfrage abgelehnt' },
+  backup_restored:   { icon:'💾', color:'#ffa502', label:'Backup eingespielt' },
 };
 
 async function loadLogs() {

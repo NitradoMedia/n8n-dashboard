@@ -956,6 +956,7 @@ app.post('/api/servers/:serverId/deploy-compose', upload.single('file'), async (
     const projectName = name.replace(/[^a-z0-9_-]/gi, '_').toLowerCase();
     const r = await sshExec(srv, `cd "${runDir}" && docker compose -p ${projectName} up -d 2>&1`);
     await registerComposeInstances(srv, projectName, name);
+    auditLog(req, 'compose_deployed', 'compose', name, `Server: ${srv.name||srv.host}`);
     res.json({ ok: true, output: r.output.trim() });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -1047,9 +1048,15 @@ app.post('/api/templates/:templateId/deploy/:serverId', async (req, res) => {
 app.post('/api/instances/:id/action', async (req, res) => {
   if (req.user.role !== 'admin' && !(await canAccessInstance(req.user.id, req.params.id)))
     return res.status(403).json({ error: 'Kein Zugriff auf diese Instanz' });
-  const inst = db.prepare('SELECT i.*, s.* FROM instances i JOIN servers s ON i.server_id=s.id WHERE i.id=?').get(req.params.id);
+  const inst = db.prepare(`
+    SELECT i.id, i.name AS inst_name, i.container_name, i.n8n_port, i.status, i.server_id,
+           s.name AS srv_name, s.host AS srv_host, s.port AS srv_port,
+           s.username, s.password, s.ssh_key
+    FROM instances i JOIN servers s ON i.server_id=s.id WHERE i.id=?
+  `).get(req.params.id);
   if (!inst) return res.status(404).json({ error: 'Not found' });
-  const srv = { host: inst.host, port: inst.port, username: inst.username, password: inst.password, ssh_key: inst.ssh_key };
+  const srv = { host: inst.srv_host, port: inst.srv_port, username: inst.username, password: inst.password, ssh_key: inst.ssh_key };
+  const srvLabel = inst.srv_name || inst.srv_host;
   const { action } = req.body;
   let cmd, newStatus;
   switch (action) {
@@ -1063,10 +1070,12 @@ app.post('/api/instances/:id/action', async (req, res) => {
     const r = await sshExec(srv, cmd);
     if (action === 'remove') {
       db.prepare('DELETE FROM instances WHERE id=?').run(req.params.id);
-      auditLog(req, 'instance_removed', 'instance', inst.name, `Server: ${srv.name||srv.host}`);
+      auditLog(req, 'instance_removed', 'instance', inst.inst_name,
+        `Container: ${inst.container_name} | Port: ${inst.n8n_port} | Server: ${srvLabel}`);
     } else {
       db.prepare('UPDATE instances SET status=? WHERE id=?').run(newStatus, req.params.id);
-      auditLog(req, `instance_${action}`, 'instance', inst.name);
+      auditLog(req, `instance_${action}`, 'instance', inst.inst_name,
+        `Container: ${inst.container_name} | Server: ${srvLabel}`);
     }
     res.json({ ok: true, output: r.output.trim() });
   } catch (e) { res.status(500).json({ error: e.message }); }
