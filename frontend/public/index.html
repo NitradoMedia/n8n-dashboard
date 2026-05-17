@@ -18,6 +18,38 @@
     --text-dim: #6e7f8d; --text-muted:#3d4f5c;
     --mono: 'JetBrains Mono', monospace; --sans: 'Syne', sans-serif;
   }
+  [data-theme="light"] {
+    --bg:        #f0f2f5; --surface:   #ffffff; --panel:    #f7f8fa;
+    --border:    #dde1e8; --border2:   #c8cdd7; --accent:   #e8630a;
+    --accent2:   #d4570a; --green:     #1a9e57; --red:      #d93025;
+    --yellow:    #c68000; --blue:      #0d8a87; --text:     #1a2333;
+    --text-dim:  #5a6778; --text-muted:#94a3b8;
+  }
+  [data-theme="light"] body { background: var(--bg); color: var(--text); }
+  [data-theme="light"] .instance-name,
+  [data-theme="light"] .login-logo,
+  [data-theme="light"] .card-title,
+  [data-theme="light"] .section-title,
+  [data-theme="light"] .stat-value,
+  [data-theme="light"] .catalog-name { color: var(--text) !important; }
+  [data-theme="light"] .instance-card { background: var(--surface); border-color: var(--border); }
+  [data-theme="light"] .instance-card.running { border-left-color: var(--green); }
+  [data-theme="light"] .instance-card.stopped,
+  [data-theme="light"] .instance-card.exited { border-left-color: var(--red); }
+  [data-theme="light"] .modal { background: var(--surface); }
+  [data-theme="light"] .modal-header { background: var(--panel); border-color: var(--border); }
+  [data-theme="light"] .stat-card { background: var(--surface); border-color: var(--border); }
+  [data-theme="light"] .card { background: var(--surface); border-color: var(--border); }
+  [data-theme="light"] .server-item,
+  [data-theme="light"] .template-card,
+  [data-theme="light"] .catalog-card,
+  [data-theme="light"] .pkg-card { background: var(--surface); border-color: var(--border); }
+  [data-theme="light"] .nav-item.active { background: rgba(232,99,10,0.08); }
+  [data-theme="light"] code { background: var(--panel); color: var(--text-dim); }
+  [data-theme="light"] .btn-ghost { border-color: var(--border2); color: var(--text-dim); }
+  [data-theme="light"] .btn-ghost:hover { color: var(--text); background: var(--panel); }
+  [data-theme="light"] input, [data-theme="light"] select, [data-theme="light"] textarea { background: var(--bg) !important; color: var(--text) !important; border-color: var(--border2) !important; }
+  [data-theme="light"] .xterm { filter: invert(1) hue-rotate(180deg); }
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   body { background: var(--bg); color: var(--text); font-family: var(--mono); font-size: 13px; height: 100vh; display: flex; overflow: hidden; }
 
@@ -392,6 +424,7 @@
     <button class="hamburger" onclick="toggleSidebar()" aria-label="Menü">☰</button>
     <div class="topbar-title" id="page-title">Dashboard</div>
     <span id="topbar-user" style="font-size:11px;color:var(--text-muted)"></span>
+    <button class="btn btn-ghost btn-sm" id="theme-toggle" onclick="toggleTheme()" title="Dark/Light Mode" style="font-size:14px;padding:4px 8px">🌙</button>
     <button class="btn btn-ghost btn-sm" onclick="refreshAll()">↻</button>
     <button class="btn btn-primary btn-sm admin-only" onclick="openDeployModal()">+ Deploy</button>
     <button class="btn btn-ghost btn-sm" onclick="logout()" style="color:var(--red);border-color:rgba(255,71,87,0.3)">⏻ Logout</button>
@@ -910,6 +943,27 @@
 </div>
 
 <script>
+// ── Theme ────────────────────────────────────────────────────
+(function() {
+  const saved = localStorage.getItem('fleet-theme') || 'dark';
+  if (saved === 'light') document.documentElement.setAttribute('data-theme', 'light');
+})();
+
+function toggleTheme() {
+  const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+  const next = isLight ? 'dark' : 'light';
+  if (next === 'light') document.documentElement.setAttribute('data-theme', 'light');
+  else document.documentElement.removeAttribute('data-theme');
+  localStorage.setItem('fleet-theme', next);
+  document.getElementById('theme-toggle').textContent = next === 'light' ? '☀️' : '🌙';
+}
+
+function applyThemeIcon() {
+  const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+  const btn = document.getElementById('theme-toggle');
+  if (btn) btn.textContent = isLight ? '☀️' : '🌙';
+}
+
 // ── State ────────────────────────────────────────────────────
 const API = '';
 let servers = [], instances = [], templates = [], catalog = [];
@@ -962,6 +1016,7 @@ function logout() {
 }
 
 function applyRole() {
+  applyThemeIcon();
   const isAdmin = currentUser?.role === 'admin';
   document.querySelectorAll('.admin-only').forEach(el => el.style.display = isAdmin ? '' : 'none');
   document.querySelectorAll('.customer-only').forEach(el => el.style.display = isAdmin ? 'none' : '');
