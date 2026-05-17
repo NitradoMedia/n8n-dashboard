@@ -437,24 +437,32 @@ app.put('/api/app-settings', requireAdmin, (req, res) => {
 // ─── BACKUP / RESTORE ────────────────────────────────────────
 app.get('/api/backup', requireAdmin, async (req, res) => {
   try {
-    const servers   = db.prepare('SELECT * FROM servers').all();
-    const instances = db.prepare('SELECT * FROM instances').all();
-    const templates = db.prepare('SELECT * FROM templates').all();
-    const catalog   = db.prepare('SELECT * FROM catalog').all();
+    // ── SQLite ──────────────────────────────────────────────────
+    const servers      = db.prepare('SELECT * FROM servers').all();
+    const instances    = db.prepare('SELECT * FROM instances').all();
+    const templates    = db.prepare('SELECT * FROM templates').all();
+    const catalog      = db.prepare('SELECT * FROM catalog').all();
+    const app_settings = db.prepare('SELECT key,value FROM app_settings').all();
 
-    const { rows: users }            = await pgPool.query('SELECT id,username,email,password_hash,role,active,created_at FROM users');
-    const { rows: packages }         = await pgPool.query('SELECT * FROM packages');
-    const { rows: user_packages }    = await pgPool.query('SELECT * FROM user_packages');
-    const { rows: package_instances }= await pgPool.query('SELECT * FROM package_instances');
+    // ── PostgreSQL ──────────────────────────────────────────────
+    const { rows: users }             = await pgPool.query('SELECT id,username,email,password_hash,role,active,created_at FROM users');
+    const { rows: packages }          = await pgPool.query('SELECT * FROM packages');
+    const { rows: user_packages }     = await pgPool.query('SELECT * FROM user_packages');
+    const { rows: package_instances } = await pgPool.query('SELECT * FROM package_instances');
+    const { rows: instance_requests } = await pgPool.query('SELECT * FROM instance_requests');
+    const { rows: audit_logs }        = await pgPool.query('SELECT * FROM audit_logs ORDER BY created_at DESC LIMIT 5000');
 
     const backup = {
-      version: 1,
+      version: 2,
       created_at: new Date().toISOString(),
-      servers, instances, templates, catalog,
+      // SQLite data
+      servers, instances, templates, catalog, app_settings,
+      // PostgreSQL data
       users, packages, user_packages, package_instances,
+      instance_requests, audit_logs,
     };
 
-    const filename = `fleet-backup-${new Date().toISOString().slice(0,10)}.json`;
+    const filename = `fleet-backup-v2-${new Date().toISOString().slice(0,10)}.json`;
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     res.setHeader('Content-Type', 'application/json');
     res.json(backup);
@@ -463,66 +471,104 @@ app.get('/api/backup', requireAdmin, async (req, res) => {
 
 app.post('/api/restore', requireAdmin, upload.single('backup'), async (req, res) => {
   try {
-    const raw = req.file ? req.file.buffer.toString('utf8') : JSON.stringify(req.body);
+    const raw  = req.file ? req.file.buffer.toString('utf8') : JSON.stringify(req.body);
     const data = JSON.parse(raw);
-    if (!data.version) return res.status(400).json({ error: 'Ungültiges Backup-Format' });
+    if (!data.version) return res.status(400).json({ error: 'Ungültiges Backup-Format (version fehlt)' });
+    if (data.version > 2) return res.status(400).json({ error: `Backup-Version ${data.version} wird nicht unterstützt` });
 
-    // ── SQLite restore (REPLACE) ──
-    const dbRestore = db.transaction(() => {
+    const stats = { servers:0, instances:0, templates:0, catalog:0, app_settings:0,
+                    users:0, packages:0, user_packages:0, package_instances:0,
+                    instance_requests:0, audit_logs:0 };
+
+    // ── SQLite (INSERT OR REPLACE) ───────────────────────────────
+    db.transaction(() => {
       if (data.servers?.length) {
         const s = db.prepare('INSERT OR REPLACE INTO servers (id,name,host,port,username,password,ssh_key,created_at) VALUES (?,?,?,?,?,?,?,?)');
-        for (const r of data.servers) s.run(r.id,r.name,r.host,r.port,r.username,r.password||null,r.ssh_key||null,r.created_at);
+        for (const r of data.servers) { s.run(r.id,r.name,r.host,r.port||22,r.username,r.password||null,r.ssh_key||null,r.created_at); stats.servers++; }
       }
       if (data.instances?.length) {
         const s = db.prepare('INSERT OR REPLACE INTO instances (id,server_id,name,container_name,n8n_port,status,webhook_url,created_at) VALUES (?,?,?,?,?,?,?,?)');
-        for (const r of data.instances) s.run(r.id,r.server_id,r.name,r.container_name,r.n8n_port,r.status||'unknown',r.webhook_url||null,r.created_at);
+        for (const r of data.instances) { s.run(r.id,r.server_id,r.name,r.container_name,r.n8n_port,r.status||'unknown',r.webhook_url||null,r.created_at); stats.instances++; }
       }
       if (data.templates?.length) {
         const s = db.prepare('INSERT OR REPLACE INTO templates (id,name,type,config,created_at) VALUES (?,?,?,?,?)');
-        for (const r of data.templates) s.run(r.id,r.name,r.type,r.config,r.created_at);
+        for (const r of data.templates) { s.run(r.id,r.name,r.type,r.config,r.created_at); stats.templates++; }
       }
       if (data.catalog?.length) {
         const s = db.prepare('INSERT OR REPLACE INTO catalog (id,name,image,description,category,ports,env,volumes,restart,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)');
-        for (const r of data.catalog) s.run(r.id,r.name,r.image,r.description||'',r.category||'Sonstige',r.ports||'[]',r.env||'[]',r.volumes||'[]',r.restart||'unless-stopped',r.created_at);
+        for (const r of data.catalog) { s.run(r.id,r.name,r.image,r.description||'',r.category||'Sonstige',r.ports||'[]',r.env||'[]',r.volumes||'[]',r.restart||'unless-stopped',r.created_at); stats.catalog++; }
       }
-    });
-    dbRestore();
+      // v2: app_settings
+      if (data.app_settings?.length) {
+        const s = db.prepare('INSERT OR REPLACE INTO app_settings (key,value) VALUES (?,?)');
+        for (const r of data.app_settings) { s.run(r.key, r.value); stats.app_settings++; }
+      }
+    })();
 
-    // ── PostgreSQL restore (upsert) ──
+    // ── PostgreSQL (upsert) ─────────────────────────────────────
     if (data.users?.length) {
       for (const u of data.users) {
-        await pgPool.query(`
-          INSERT INTO users (id,username,email,password_hash,role,active,created_at)
-          VALUES ($1,$2,$3,$4,$5,$6,$7)
-          ON CONFLICT (id) DO UPDATE SET username=EXCLUDED.username, email=EXCLUDED.email,
-            password_hash=EXCLUDED.password_hash, role=EXCLUDED.role, active=EXCLUDED.active`,
-          [u.id, u.username, u.email||null, u.password_hash, u.role||'customer', u.active!==false, u.created_at]);
+        await pgPool.query(
+          `INSERT INTO users (id,username,email,password_hash,role,active,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7)
+           ON CONFLICT (id) DO UPDATE SET username=EXCLUDED.username,email=EXCLUDED.email,
+             password_hash=EXCLUDED.password_hash,role=EXCLUDED.role,active=EXCLUDED.active`,
+          [u.id,u.username,u.email||null,u.password_hash,u.role||'customer',u.active!==false,u.created_at]);
+        stats.users++;
       }
     }
     if (data.packages?.length) {
       for (const p of data.packages) {
-        await pgPool.query(`
-          INSERT INTO packages (id,name,description,created_at) VALUES ($1,$2,$3,$4)
-          ON CONFLICT (id) DO UPDATE SET name=EXCLUDED.name, description=EXCLUDED.description`,
-          [p.id, p.name, p.description||'', p.created_at]);
+        await pgPool.query(
+          `INSERT INTO packages (id,name,description,created_at) VALUES ($1,$2,$3,$4)
+           ON CONFLICT (id) DO UPDATE SET name=EXCLUDED.name,description=EXCLUDED.description`,
+          [p.id,p.name,p.description||'',p.created_at]);
+        stats.packages++;
       }
     }
     if (data.user_packages?.length) {
       for (const up of data.user_packages) {
-        await pgPool.query(
-          'INSERT INTO user_packages (user_id,package_id) VALUES ($1,$2) ON CONFLICT DO NOTHING',
-          [up.user_id, up.package_id]);
+        await pgPool.query('INSERT INTO user_packages (user_id,package_id) VALUES ($1,$2) ON CONFLICT DO NOTHING',[up.user_id,up.package_id]);
+        stats.user_packages++;
       }
     }
     if (data.package_instances?.length) {
       for (const pi of data.package_instances) {
+        await pgPool.query('INSERT INTO package_instances (package_id,instance_id) VALUES ($1,$2) ON CONFLICT DO NOTHING',[pi.package_id,pi.instance_id]);
+        stats.package_instances++;
+      }
+    }
+    // v2: instance_requests
+    if (data.instance_requests?.length) {
+      for (const r of data.instance_requests) {
         await pgPool.query(
-          'INSERT INTO package_instances (package_id,instance_id) VALUES ($1,$2) ON CONFLICT DO NOTHING',
-          [pi.package_id, pi.instance_id]);
+          `INSERT INTO instance_requests (id,user_id,catalog_id,catalog_name,catalog_image,status,note,created_at,resolved_at,resolved_by)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT (id) DO NOTHING`,
+          [r.id,r.user_id,r.catalog_id,r.catalog_name,r.catalog_image,r.status||'pending',r.note||'',r.created_at,r.resolved_at||null,r.resolved_by||null]);
+        stats.instance_requests++;
+      }
+    }
+    // v2: audit_logs (best-effort, skip errors)
+    if (data.audit_logs?.length) {
+      for (const l of data.audit_logs) {
+        try {
+          await pgPool.query(
+            `INSERT INTO audit_logs (id,user_id,username,action,target_type,target_name,details,ip,created_at)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT (id) DO NOTHING`,
+            [l.id,l.user_id||null,l.username||null,l.action,l.target_type||null,l.target_name||null,l.details||null,l.ip||null,l.created_at]);
+          stats.audit_logs++;
+        } catch(_) {}
       }
     }
 
-    res.json({ ok: true, message: 'Backup erfolgreich eingespielt' });
+    auditLog(req, 'backup_restored', 'system', `v${data.version}`,
+      `Server:${stats.servers} Instanzen:${stats.instances} User:${stats.users} Anfragen:${stats.instance_requests}`);
+
+    res.json({
+      ok: true,
+      version: data.version,
+      message: `Backup v${data.version} vom ${data.created_at?.slice(0,10) || '?'} erfolgreich eingespielt`,
+      stats
+    });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 

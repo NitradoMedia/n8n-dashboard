@@ -821,24 +821,39 @@
         <div class="card-header"><div class="card-title">Backup &amp; Restore</div></div>
         <div class="card-body">
           <p style="font-size:12px;color:var(--text-dim);margin-bottom:16px">
-            Das Backup enthält alle Server (inkl. SSH-Keys &amp; Passwörter), Instanzen, Vorlagen, den Image-Katalog sowie alle Benutzer und Pakete.
+            Backup <strong style="color:var(--text)">v2</strong> enthält: Server (inkl. SSH-Zugänge), Instanzen, Vorlagen, Image-Katalog, App-Einstellungen,
+            Benutzer, Pakete, Paket-Zuweisungen, Instanz-Anfragen und bis zu 5.000 Audit-Log-Einträge.
           </p>
-          <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-start">
-            <div>
-              <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:1px">Backup erstellen</div>
-              <button class="btn btn-primary" onclick="downloadBackup()" id="btn-backup">⬇ Backup herunterladen</button>
+          <div style="display:flex;gap:20px;flex-wrap:wrap;align-items:flex-start">
+
+            <!-- Export -->
+            <div style="flex:1;min-width:200px">
+              <div style="font-size:10px;color:var(--text-muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:1px;font-weight:700">
+                <i class="ti ti-download"></i> Export
+              </div>
+              <button class="btn btn-primary" onclick="downloadBackup()" id="btn-backup">
+                <i class="ti ti-file-download"></i> Backup herunterladen
+              </button>
+              <div style="font-size:10px;color:var(--text-muted);margin-top:6px" id="backup-info"></div>
             </div>
-            <div>
-              <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:1px">Backup einspielen</div>
-              <div style="display:flex;gap:8px;align-items:center">
+
+            <!-- Import -->
+            <div style="flex:2;min-width:280px">
+              <div style="font-size:10px;color:var(--text-muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:1px;font-weight:700">
+                <i class="ti ti-upload"></i> Import
+              </div>
+              <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
                 <label class="btn btn-ghost" style="cursor:pointer;margin:0">
-                  📂 Datei wählen
+                  <i class="ti ti-folder-open"></i> Datei wählen
                   <input type="file" id="restore-file" accept=".json" style="display:none" onchange="previewRestore(this)">
                 </label>
                 <span id="restore-filename" style="font-size:11px;color:var(--text-dim)">Keine Datei gewählt</span>
               </div>
-              <div id="restore-preview" style="display:none;margin-top:10px;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:10px;font-size:11px;color:var(--text-dim);line-height:1.8"></div>
-              <button class="btn btn-danger" id="btn-restore" style="display:none;margin-top:10px" onclick="doRestore()">⚠ Backup einspielen</button>
+              <div id="restore-preview" style="display:none;margin-top:12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:12px;font-size:11px;color:var(--text-dim);line-height:2"></div>
+              <button class="btn btn-danger" id="btn-restore" style="display:none;margin-top:10px" onclick="doRestore()">
+                <i class="ti ti-alert-triangle"></i> Backup einspielen
+              </button>
+              <div id="restore-result" style="display:none;margin-top:10px;background:rgba(61,220,132,0.08);border:1px solid rgba(61,220,132,0.25);border-radius:6px;padding:12px;font-size:11px;color:var(--text-dim);line-height:2"></div>
             </div>
           </div>
         </div>
@@ -1381,22 +1396,23 @@ async function ukSyncFromDashboard() {
 
 // ── Backup & Restore ─────────────────────────────────────────
 async function downloadBackup() {
-  const btn = document.getElementById('btn-backup');
-  btn.disabled = true; btn.textContent = '⏳ Wird erstellt...';
+  const btn  = document.getElementById('btn-backup');
+  const info = document.getElementById('backup-info');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="ti ti-loader-2"></i> Wird erstellt…';
   try {
-    const token = getToken();
-    const res = await fetch('/api/backup', { headers: { 'Authorization': 'Bearer ' + token } });
+    const res = await fetch('/api/backup', { headers: { 'Authorization': 'Bearer ' + getToken() } });
     if (!res.ok) { toast('Backup fehlgeschlagen: ' + (await res.json()).error, 'error'); return; }
     const blob = await res.blob();
     const cd   = res.headers.get('Content-Disposition') || '';
-    const name = (cd.match(/filename="([^"]+)"/) || [])[1] || 'fleet-backup.json';
+    const name = (cd.match(/filename="([^"]+)"/) || [])[1] || 'fleet-backup-v2.json';
     const url  = URL.createObjectURL(blob);
-    const a    = document.createElement('a');
-    a.href = url; a.download = name; a.click();
+    const a    = document.createElement('a'); a.href = url; a.download = name; a.click();
     URL.revokeObjectURL(url);
-    toast('Backup heruntergeladen', 'success');
+    if (info) info.textContent = `Zuletzt: ${new Date().toLocaleString('de-DE')} · ${(blob.size/1024).toFixed(1)} KB`;
+    toast('Backup v2 heruntergeladen', 'success');
   } catch(e) { toast('Fehler: ' + e.message, 'error'); }
-  finally { btn.disabled = false; btn.textContent = '⬇ Backup herunterladen'; }
+  finally { btn.disabled = false; btn.innerHTML = '<i class="ti ti-file-download"></i> Backup herunterladen'; }
 }
 
 let _restoreFile = null;
@@ -1405,46 +1421,74 @@ function previewRestore(input) {
   if (!file) return;
   _restoreFile = file;
   document.getElementById('restore-filename').textContent = file.name;
+  document.getElementById('restore-result').style.display = 'none';
   const reader = new FileReader();
   reader.onload = e => {
     try {
-      const data = JSON.parse(e.target.result);
+      const d = JSON.parse(e.target.result);
+      if (!d.version) { toast('Ungültige Backup-Datei (kein version-Feld)', 'error'); return; }
+      const row = (icon, label, arr) =>
+        `<div><i class="ti ${icon}" style="color:var(--accent)"></i> ${label}: <strong style="color:var(--text)">${(arr||[]).length}</strong></div>`;
       const preview = document.getElementById('restore-preview');
       preview.style.display = 'block';
-      preview.innerHTML = [
-        data.created_at ? `📅 Erstellt: <strong>${new Date(data.created_at).toLocaleString('de-DE')}</strong>` : '',
-        `🖥️ Server: <strong>${(data.servers||[]).length}</strong>`,
-        `📦 Instanzen: <strong>${(data.instances||[]).length}</strong>`,
-        `👤 Benutzer: <strong>${(data.users||[]).length}</strong>`,
-        `📋 Pakete: <strong>${(data.packages||[]).length}</strong>`,
-        `⊞ Katalog-Einträge: <strong>${(data.catalog||[]).length}</strong>`,
-        `◧ Vorlagen: <strong>${(data.templates||[]).length}</strong>`,
-      ].filter(Boolean).join('<br>');
+      preview.innerHTML = `
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--border)">
+          <span style="background:rgba(232,99,10,0.15);color:var(--accent);border:1px solid var(--accent);padding:2px 8px;border-radius:3px;font-size:10px;font-weight:700">v${d.version}</span>
+          <span>${d.created_at ? new Date(d.created_at).toLocaleString('de-DE') : '—'}</span>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:2px 16px">
+          ${row('ti-server-2',     'Server',           d.servers)}
+          ${row('ti-cube',         'Instanzen',         d.instances)}
+          ${row('ti-users',        'Benutzer',          d.users)}
+          ${row('ti-box',          'Pakete',            d.packages)}
+          ${row('ti-packages',     'Katalog',           d.catalog)}
+          ${row('ti-template',     'Vorlagen',          d.templates)}
+          ${row('ti-bell',         'Anfragen',          d.instance_requests)}
+          ${row('ti-list-details', 'Audit-Logs',        d.audit_logs)}
+          ${row('ti-settings',     'App-Einstellungen', d.app_settings)}
+        </div>`;
       document.getElementById('btn-restore').style.display = 'inline-flex';
-    } catch { toast('Ungültige Backup-Datei', 'error'); }
+    } catch(err) { toast('Ungültige JSON-Datei: ' + err.message, 'error'); }
   };
   reader.readAsText(file);
 }
 
 async function doRestore() {
   if (!_restoreFile) return;
-  if (!confirm('Backup einspielen? Bestehende Daten werden durch das Backup ergänzt/überschrieben.')) return;
-  const btn = document.getElementById('btn-restore');
-  btn.disabled = true; btn.textContent = '⏳ Wird eingespielt...';
+  if (!confirm('Backup einspielen?\n\nBestehende Einträge werden aktualisiert, neue hinzugefügt.\nNichts wird gelöscht.')) return;
+  const btn      = document.getElementById('btn-restore');
+  const resultEl = document.getElementById('restore-result');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="ti ti-loader-2"></i> Wird eingespielt…';
+  resultEl.style.display = 'none';
   try {
     const formData = new FormData();
     formData.append('backup', _restoreFile);
-    const res = await fetch('/api/restore', {
-      method: 'POST',
-      headers: { 'Authorization': 'Bearer ' + getToken() },
-      body: formData,
-    });
+    const res  = await fetch('/api/restore', { method:'POST', headers:{'Authorization':'Bearer '+getToken()}, body:formData });
     const json = await res.json();
     if (!res.ok) { toast('Fehler: ' + json.error, 'error'); return; }
-    toast('Backup erfolgreich eingespielt – Seite wird neu geladen', 'success');
-    setTimeout(() => location.reload(), 1500);
+    const s = json.stats || {};
+    resultEl.style.display = 'block';
+    resultEl.innerHTML = `
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;color:var(--green);font-weight:700">
+        <i class="ti ti-circle-check"></i> ${json.message}
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:2px 16px;color:var(--text-dim)">
+        <div><i class="ti ti-server-2" style="color:var(--accent)"></i> Server: <strong style="color:var(--text)">${s.servers||0}</strong></div>
+        <div><i class="ti ti-cube" style="color:var(--accent)"></i> Instanzen: <strong style="color:var(--text)">${s.instances||0}</strong></div>
+        <div><i class="ti ti-users" style="color:var(--accent)"></i> Benutzer: <strong style="color:var(--text)">${s.users||0}</strong></div>
+        <div><i class="ti ti-box" style="color:var(--accent)"></i> Pakete: <strong style="color:var(--text)">${s.packages||0}</strong></div>
+        <div><i class="ti ti-packages" style="color:var(--accent)"></i> Katalog: <strong style="color:var(--text)">${s.catalog||0}</strong></div>
+        <div><i class="ti ti-template" style="color:var(--accent)"></i> Vorlagen: <strong style="color:var(--text)">${s.templates||0}</strong></div>
+        <div><i class="ti ti-bell" style="color:var(--accent)"></i> Anfragen: <strong style="color:var(--text)">${s.instance_requests||0}</strong></div>
+        <div><i class="ti ti-list-details" style="color:var(--accent)"></i> Logs: <strong style="color:var(--text)">${s.audit_logs||0}</strong></div>
+        <div><i class="ti ti-settings" style="color:var(--accent)"></i> Einstellungen: <strong style="color:var(--text)">${s.app_settings||0}</strong></div>
+      </div>`;
+    toast('Backup eingespielt', 'success');
+    btn.style.display = 'none';
+    await refreshAll();
   } catch(e) { toast('Fehler: ' + e.message, 'error'); }
-  finally { btn.disabled = false; btn.textContent = '⚠ Backup einspielen'; }
+  finally { btn.disabled = false; btn.innerHTML = '<i class="ti ti-alert-triangle"></i> Backup einspielen'; }
 }
 
 // ── API ──────────────────────────────────────────────────────
