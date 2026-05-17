@@ -1500,6 +1500,9 @@
           </div>
           <div class="file-list" id="dc-file-list"></div>
         </div>
+        <div style="display:flex;gap:8px;margin-top:4px">
+          <button class="btn btn-ghost btn-sm" id="compose-save-btn" onclick="saveComposeAsTemplate()" style="flex:1"><i class="ti ti-device-floppy"></i> Nur als Vorlage speichern</button>
+        </div>
         <div class="log-output" id="compose-log"></div>
       </div>
 
@@ -3501,7 +3504,7 @@ async function previewCompose(file) {
   document.getElementById('dc-file-list').innerHTML = '<div style="font-size:11px;color:var(--text-muted)">⟳ Analysiere...</div>';
   const fd = new FormData(); fd.append('file', file);
   try {
-    const r = await fetch('/api/compose/parse', { method: 'POST', body: fd });
+    const r = await fetch('/api/compose/parse', { method: 'POST', headers: { 'Authorization': 'Bearer ' + getToken() }, body: fd });
     const data = await r.json();
     if (data.error) { toast(data.error, 'error'); document.getElementById('dc-file-list').innerHTML = `<div style="color:var(--red);font-size:11px">❌ ${esc(data.error)}</div>`; return; }
     const compose = data.files.find(f => f.isCompose);
@@ -3525,7 +3528,7 @@ async function deployCompose() {
 
   const fd = new FormData(); fd.append('file', composeFile); fd.append('name', name);
   try {
-    const res  = await fetch(`/api/servers/${serverId}/deploy-compose`, { method: 'POST', body: fd });
+    const res  = await fetch(`/api/servers/${serverId}/deploy-compose`, { method: 'POST', headers: { 'Authorization': 'Bearer ' + getToken() }, body: fd });
     const data = await res.json();
     if (data.error) { showLog('compose-log', '❌ ' + data.error, 'red'); btn.disabled=false; btn.textContent='📦 Deploy Compose'; return; }
 
@@ -3544,6 +3547,30 @@ async function deployCompose() {
     toast('Compose deployed: ' + name, 'success');
     btn.textContent = '✅ Done!';
   } catch(e) { showLog('compose-log', '❌ ' + e.message, 'red'); btn.disabled=false; btn.textContent='📦 Deploy Compose'; }
+}
+
+async function saveComposeAsTemplate() {
+  if (!composeFile) { toast('Bitte zuerst eine ZIP-Datei auswählen', 'error'); return; }
+  const name = document.getElementById('dc-name').value.trim();
+  if (!name) { toast('Stack-Name erforderlich', 'error'); return; }
+  const btn = document.getElementById('compose-save-btn');
+  btn.disabled = true; btn.innerHTML = '<i class="ti ti-loader"></i> Speichern...';
+  try {
+    const zipBase64 = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = e => resolve(e.target.result.split(',')[1]);
+      reader.onerror = reject;
+      reader.readAsDataURL(composeFile);
+    });
+    await api('POST', '/api/templates', { name, type: 'compose', config: { zipBase64 } });
+    toast('✅ Vorlage "' + name + '" gespeichert', 'success');
+    closeModal('modal-deploy');
+    loadTemplates();
+  } catch(e) {
+    toast('Fehler beim Speichern: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false; btn.innerHTML = '<i class="ti ti-device-floppy"></i> Nur als Vorlage speichern';
+  }
 }
 
 // ── Template Deploy ──────────────────────────────────────────
