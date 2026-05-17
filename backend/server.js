@@ -190,6 +190,17 @@ async function initPG(retries = 15) {
           resolved_at TIMESTAMP,
           resolved_by UUID REFERENCES users(id)
         );
+        CREATE TABLE IF NOT EXISTS audit_logs (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+          username VARCHAR(100),
+          action VARCHAR(100) NOT NULL,
+          target_type VARCHAR(50),
+          target_name TEXT,
+          details TEXT,
+          ip TEXT,
+          created_at TIMESTAMP DEFAULT NOW()
+        );
       `);
       const { rowCount } = await pgPool.query("SELECT id FROM users WHERE role='admin' LIMIT 1");
       if (rowCount === 0) {
@@ -225,6 +236,22 @@ function requireAdmin(req, res, next) {
   next();
 }
 
+function auditLog(req, action, targetType, targetName, details) {
+  const ip = req.headers['x-forwarded-for'] || req.socket?.remoteAddress || null;
+  pgPool.query(
+    'INSERT INTO audit_logs (user_id,username,action,target_type,target_name,details,ip) VALUES ($1,$2,$3,$4,$5,$6,$7)',
+    [req.user?.id || null, req.user?.username || 'system', action, targetType || null, targetName || null, details || null, ip]
+  ).catch(() => {});
+}
+
+app.get('/api/logs', requireAdmin, async (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit) || 200, 500);
+  const { rows } = await pgPool.query(
+    'SELECT * FROM audit_logs ORDER BY created_at DESC LIMIT $1', [limit]
+  );
+  res.json(rows);
+});
+
 async function canAccessInstance(userId, instanceId) {
   const { rowCount } = await pgPool.query(
     `SELECT 1 FROM package_instances pi
@@ -251,9 +278,16 @@ app.post('/api/auth/login', async (req, res) => {
   try {
     const { rows } = await pgPool.query('SELECT * FROM users WHERE username=$1 AND active=true', [username]);
     const user = rows[0];
-    if (!user || !(await bcrypt.compare(password, user.password_hash)))
+    if (!user || !(await bcrypt.compare(password, user.password_hash))) {
+      const ip = req.headers['x-forwarded-for'] || req.socket?.remoteAddress || null;
+      pgPool.query('INSERT INTO audit_logs (username,action,details,ip) VALUES ($1,$2,$3,$4)',
+        [username, 'login_failed', 'Falsches Passwort', ip]).catch(() => {});
       return res.status(401).json({ error: 'Benutzername oder Passwort falsch' });
+    }
     const token = jwt.sign({ id: user.id, username: user.username, role: user.role }, JWT_SECRET, { expiresIn: '8h' });
+    const ip = req.headers['x-forwarded-for'] || req.socket?.remoteAddress || null;
+    pgPool.query('INSERT INTO audit_logs (user_id,username,action,ip) VALUES ($1,$2,$3,$4)',
+      [user.id, user.username, 'login', ip]).catch(() => {});
     res.json({ token, user: { id: user.id, username: user.username, role: user.role } });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -295,6 +329,7 @@ app.post('/api/users', requireAdmin, async (req, res) => {
     const { rows } = await pgPool.query(
       "INSERT INTO users (username,email,password_hash,role) VALUES ($1,$2,$3,$4) RETURNING id",
       [username, email||null, hash, role]);
+    auditLog(req, 'user_created', 'user', username, `Rolle: ${role}`);
     res.json({ id: rows[0].id });
   } catch(e) { res.status(400).json({ error: e.message.includes('unique') ? 'Username bereits vergeben' : e.message }); }
 });
@@ -316,7 +351,9 @@ app.put('/api/users/:id', requireAdmin, async (req, res) => {
 
 app.delete('/api/users/:id', requireAdmin, async (req, res) => {
   if (req.user.id === req.params.id) return res.status(400).json({ error: 'Eigenen Account nicht löschbar' });
+  const { rows } = await pgPool.query('SELECT username FROM users WHERE id=$1', [req.params.id]);
   await pgPool.query('DELETE FROM users WHERE id=$1', [req.params.id]);
+  auditLog(req, 'user_deleted', 'user', rows[0]?.username || req.params.id);
   res.json({ ok: true });
 });
 
@@ -350,6 +387,7 @@ app.post('/api/packages', requireAdmin, async (req, res) => {
   const { name, description='' } = req.body;
   if (!name) return res.status(400).json({ error: 'Name erforderlich' });
   const { rows } = await pgPool.query('INSERT INTO packages (name,description) VALUES ($1,$2) RETURNING *', [name, description]);
+  auditLog(req, 'package_created', 'package', name);
   res.json(rows[0]);
 });
 
@@ -360,7 +398,9 @@ app.put('/api/packages/:id', requireAdmin, async (req, res) => {
 });
 
 app.delete('/api/packages/:id', requireAdmin, async (req, res) => {
+  const { rows } = await pgPool.query('SELECT name FROM packages WHERE id=$1', [req.params.id]);
   await pgPool.query('DELETE FROM packages WHERE id=$1', [req.params.id]);
+  auditLog(req, 'package_deleted', 'package', rows[0]?.name || req.params.id);
   res.json({ ok: true });
 });
 
@@ -733,6 +773,7 @@ app.post('/api/servers/:serverId/deploy', async (req, res) => {
     const webhookUrl = ports[0] ? `http://${srv.host}:${assignedPort}` : null;
     db.prepare("INSERT INTO instances VALUES (?,?,?,?,?,?,?,strftime('%s','now'))")
       .run(id, srv.id, name, containerName, assignedPort, 'running', webhookUrl);
+    auditLog(req, 'instance_deployed', 'instance', name, `Image: ${image}, Port: ${assignedPort}, Server: ${srv.name||srv.host}`);
     res.json({ id, name, containerName, port: assignedPort, status: 'running', webhookUrl, output: r.output.trim() });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -902,8 +943,13 @@ app.post('/api/instances/:id/action', async (req, res) => {
   }
   try {
     const r = await sshExec(srv, cmd);
-    if (action === 'remove') db.prepare('DELETE FROM instances WHERE id=?').run(req.params.id);
-    else db.prepare('UPDATE instances SET status=? WHERE id=?').run(newStatus, req.params.id);
+    if (action === 'remove') {
+      db.prepare('DELETE FROM instances WHERE id=?').run(req.params.id);
+      auditLog(req, 'instance_removed', 'instance', inst.name, `Server: ${srv.name||srv.host}`);
+    } else {
+      db.prepare('UPDATE instances SET status=? WHERE id=?').run(newStatus, req.params.id);
+      auditLog(req, `instance_${action}`, 'instance', inst.name);
+    }
     res.json({ ok: true, output: r.output.trim() });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });

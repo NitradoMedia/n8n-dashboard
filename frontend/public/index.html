@@ -413,6 +413,16 @@
       <div class="instances-grid" id="dashboard-instances">
         <div class="empty-state"><div class="empty-icon">⬡</div><div class="empty-text">Keine Instanzen vorhanden</div><div class="empty-sub">Klicke auf „Deploy" um zu starten</div></div>
       </div>
+
+      <!-- Uptime Kuma Quick-Sync -->
+      <div class="card admin-only" style="margin-top:20px;padding:14px 16px;display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+        <img src="https://cdn.simpleicons.org/uptimekuma/ffffff" width="20" height="20" style="opacity:0.8;flex-shrink:0" onerror="this.style.display='none'">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:12px;font-weight:600;color:var(--text)">Uptime Kuma</div>
+          <div style="font-size:11px;color:var(--text-muted)" id="uk-dash-info">Alle Instanzen als HTTP-Monitor synchronisieren</div>
+        </div>
+        <button class="btn btn-primary btn-sm" id="uk-dash-btn" onclick="ukSyncFromDashboard()">🔄 Sync</button>
+      </div>
     </div>
 
     <!-- Instances -->
@@ -541,6 +551,7 @@
             </div>
           </div>
           <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+            <button class="btn btn-ghost" onclick="ukSaveSettings()">💾 Speichern</button>
             <button class="btn btn-primary" onclick="ukSync()" id="uk-sync-btn">🔄 Monitore synchronisieren</button>
             <span style="font-size:11px" id="uk-export-info"></span>
           </div>
@@ -984,17 +995,31 @@ function saveSettings() {
 }
 
 // ── Uptime Kuma Integration ───────────────────────────────────
-async function ukSync() {
-  const btn    = document.getElementById('uk-sync-btn');
-  const info   = document.getElementById('uk-export-info');
+async function ukLoadSettings() {
+  try {
+    const s = await api('GET', '/api/app-settings');
+    if (s.uk_url)  { const el = document.getElementById('uk-url');  if (el) el.value = s.uk_url; }
+    if (s.uk_user) { const el = document.getElementById('uk-user'); if (el) el.value = s.uk_user; }
+    if (s.uk_pass) { const el = document.getElementById('uk-pass'); if (el) el.value = s.uk_pass; }
+  } catch {}
+}
+
+async function ukSaveSettings() {
   const ukUrl    = document.getElementById('uk-url').value.trim();
   const username = document.getElementById('uk-user').value.trim();
   const password = document.getElementById('uk-pass').value;
-  if (!ukUrl)    { toast('Bitte Uptime Kuma URL eingeben', 'error'); return; }
-  if (!username) { toast('Bitte Benutzername eingeben', 'error'); return; }
-  if (!password) { toast('Bitte Passwort eingeben', 'error'); return; }
-  btn.disabled = true; btn.textContent = '⏳ Synchronisiere...';
-  info.textContent = ''; info.style.color = '';
+  try {
+    await api('PUT', '/api/app-settings', { uk_url: ukUrl, uk_user: username, uk_pass: password });
+    toast('Uptime Kuma Einstellungen gespeichert', 'success');
+  } catch(e) { toast('Fehler: ' + e.message, 'error'); }
+}
+
+async function ukSyncWithCredentials(ukUrl, username, password, btnEl, infoEl) {
+  if (!ukUrl)    { toast('Bitte Uptime Kuma URL in den Einstellungen hinterlegen', 'error'); return; }
+  if (!username) { toast('Bitte Benutzername in den Einstellungen hinterlegen', 'error'); return; }
+  if (!password) { toast('Bitte Passwort in den Einstellungen hinterlegen', 'error'); return; }
+  if (btnEl) { btnEl.disabled = true; btnEl.textContent = '⏳ Synchronisiere...'; }
+  if (infoEl) { infoEl.textContent = ''; infoEl.style.color = ''; }
   try {
     const res  = await fetch('/api/integrations/uptime-kuma/sync', {
       method: 'POST',
@@ -1003,17 +1028,33 @@ async function ukSync() {
     });
     const data = await res.json();
     if (!res.ok) { toast('Fehler: ' + (data.error || res.status), 'error'); return; }
-    info.textContent = `✓ ${data.created} erstellt, ${data.skipped} übersprungen`;
-    info.style.color = 'var(--green)';
     if (data.errors && data.errors.length) {
-      info.textContent = data.errors[0];
-      info.style.color = 'var(--red)';
+      if (infoEl) { infoEl.textContent = data.errors[0]; infoEl.style.color = 'var(--red)'; }
       toast(`Fehler: ${data.errors[0]}`, 'error');
     } else {
-      toast(`${data.created} Monitor(e) in Uptime Kuma angelegt`, 'success');
+      if (infoEl) { infoEl.textContent = `✓ ${data.created} erstellt, ${data.skipped} übersprungen`; infoEl.style.color = 'var(--green)'; }
+      toast(`${data.created} Monitor(e) angelegt, ${data.skipped} übersprungen`, 'success');
     }
   } catch(e) { toast('Fehler: ' + e.message, 'error'); }
-  btn.disabled = false; btn.textContent = '🔄 Monitore synchronisieren';
+  if (btnEl) { btnEl.disabled = false; btnEl.textContent = '🔄 Monitore synchronisieren'; }
+}
+
+async function ukSync() {
+  const settings = await api('GET', '/api/app-settings').catch(() => ({}));
+  const ukUrl    = document.getElementById('uk-url')?.value.trim()  || settings.uk_url  || '';
+  const username = document.getElementById('uk-user')?.value.trim() || settings.uk_user || '';
+  const password = document.getElementById('uk-pass')?.value        || settings.uk_pass || '';
+  await ukSyncWithCredentials(ukUrl, username, password,
+    document.getElementById('uk-sync-btn'),
+    document.getElementById('uk-export-info'));
+}
+
+async function ukSyncFromDashboard() {
+  const settings = await api('GET', '/api/app-settings').catch(() => ({}));
+  await ukSyncWithCredentials(
+    settings.uk_url || '', settings.uk_user || '', settings.uk_pass || '',
+    document.getElementById('uk-dash-btn'),
+    document.getElementById('uk-dash-info'));
 }
 
 // ── Backup & Restore ─────────────────────────────────────────
@@ -1662,6 +1703,7 @@ function showPage(name) {
   if (name === 'users')    loadUsers();
   if (name === 'packages') loadPackages();
   if (name === 'requests') loadRequests();
+  if (name === 'settings') ukLoadSettings();
   // close sidebar on mobile after navigation
   if (window.innerWidth <= 768) closeSidebar();
 }
