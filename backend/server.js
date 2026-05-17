@@ -11,8 +11,13 @@ const WebSocket  = require('ws');
 const multer     = require('multer');
 const unzipper   = require('unzipper');
 
+const { Pool } = require('pg');
+const jwt      = require('jsonwebtoken');
+const bcrypt   = require('bcryptjs');
+
 const app  = express();
 const PORT = process.env.PORT || 3000;
+const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-me';
 
 // ─── DB ──────────────────────────────────────────────────────
 const DB_PATH = process.env.DB_PATH || '/data/dashboard.db';
@@ -130,9 +135,217 @@ const SEED_CATALOG = [
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
 
+// ─── PostgreSQL Auth DB ───────────────────────────────────────
+const pgPool = new Pool({
+  host:     process.env.PG_HOST || 'localhost',
+  port:     parseInt(process.env.PG_PORT) || 5432,
+  user:     process.env.PG_USER || 'fleet',
+  password: process.env.PG_PASSWORD || 'fleet_secret',
+  database: process.env.PG_DB || 'fleet_auth',
+  connectionTimeoutMillis: 5000,
+});
+
+async function initPG(retries = 15) {
+  for (let i = 0; i < retries; i++) {
+    try {
+      await pgPool.query(`
+        CREATE TABLE IF NOT EXISTS users (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          username VARCHAR(100) UNIQUE NOT NULL,
+          email VARCHAR(255),
+          password_hash VARCHAR(255) NOT NULL,
+          role VARCHAR(20) NOT NULL DEFAULT 'customer',
+          active BOOLEAN DEFAULT true,
+          created_at TIMESTAMP DEFAULT NOW()
+        );
+        CREATE TABLE IF NOT EXISTS packages (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          name VARCHAR(255) NOT NULL,
+          description TEXT DEFAULT '',
+          created_at TIMESTAMP DEFAULT NOW()
+        );
+        CREATE TABLE IF NOT EXISTS user_packages (
+          user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+          package_id UUID REFERENCES packages(id) ON DELETE CASCADE,
+          PRIMARY KEY (user_id, package_id)
+        );
+        CREATE TABLE IF NOT EXISTS package_instances (
+          package_id UUID REFERENCES packages(id) ON DELETE CASCADE,
+          instance_id TEXT NOT NULL,
+          PRIMARY KEY (package_id, instance_id)
+        );
+      `);
+      const { rowCount } = await pgPool.query("SELECT id FROM users WHERE role='admin' LIMIT 1");
+      if (rowCount === 0) {
+        const hash = await bcrypt.hash('admin123', 10);
+        await pgPool.query(
+          "INSERT INTO users (username, email, password_hash, role) VALUES ($1,$2,$3,'admin')",
+          ['admin', 'admin@fleet.local', hash]
+        );
+        console.log('[AUTH] Default admin created: admin / admin123');
+      }
+      console.log('[PG] Connected and ready');
+      return;
+    } catch(e) {
+      console.log(`[PG] Waiting (${i+1}/${retries}): ${e.message}`);
+      await new Promise(r => setTimeout(r, 2000));
+    }
+  }
+  throw new Error('PostgreSQL nicht erreichbar nach mehreren Versuchen');
+}
+
+// ─── Auth Middleware ──────────────────────────────────────────
+async function requireAuth(req, res, next) {
+  const token = (req.headers.authorization || '').replace('Bearer ', '').trim();
+  if (!token) return res.status(401).json({ error: 'Nicht angemeldet' });
+  try {
+    req.user = jwt.verify(token, JWT_SECRET);
+    next();
+  } catch { res.status(401).json({ error: 'Token ungültig oder abgelaufen' }); }
+}
+
+function requireAdmin(req, res, next) {
+  if (req.user?.role !== 'admin') return res.status(403).json({ error: 'Nur für Admins zugänglich' });
+  next();
+}
+
+async function canAccessInstance(userId, instanceId) {
+  const { rowCount } = await pgPool.query(
+    `SELECT 1 FROM package_instances pi
+     JOIN user_packages up ON up.package_id = pi.package_id
+     WHERE up.user_id=$1 AND pi.instance_id=$2`, [userId, instanceId]);
+  return rowCount > 0;
+}
+
 app.use(cors());
 app.use(bodyParser.json());
 app.use(express.static(path.join(__dirname, '../frontend/public')));
+
+// ─── PUBLIC: Auth Routes ──────────────────────────────────────
+app.post('/api/auth/login', async (req, res) => {
+  const { username, password } = req.body;
+  if (!username || !password) return res.status(400).json({ error: 'Username und Passwort erforderlich' });
+  try {
+    const { rows } = await pgPool.query('SELECT * FROM users WHERE username=$1 AND active=true', [username]);
+    const user = rows[0];
+    if (!user || !(await bcrypt.compare(password, user.password_hash)))
+      return res.status(401).json({ error: 'Benutzername oder Passwort falsch' });
+    const token = jwt.sign({ id: user.id, username: user.username, role: user.role }, JWT_SECRET, { expiresIn: '8h' });
+    res.json({ token, user: { id: user.id, username: user.username, role: user.role } });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ─── GLOBAL AUTH for all /api routes ─────────────────────────
+app.use('/api', requireAuth);
+
+// ─── Auth: current user ───────────────────────────────────────
+app.get('/api/auth/me', async (req, res) => {
+  try {
+    const { rows } = await pgPool.query('SELECT id,username,email,role,created_at FROM users WHERE id=$1', [req.user.id]);
+    res.json(rows[0] || null);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/auth/change-password', async (req, res) => {
+  const { oldPassword, newPassword } = req.body;
+  try {
+    const { rows } = await pgPool.query('SELECT * FROM users WHERE id=$1', [req.user.id]);
+    if (!rows[0] || !(await bcrypt.compare(oldPassword, rows[0].password_hash)))
+      return res.status(401).json({ error: 'Altes Passwort falsch' });
+    const hash = await bcrypt.hash(newPassword, 10);
+    await pgPool.query('UPDATE users SET password_hash=$1 WHERE id=$2', [hash, req.user.id]);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ─── Users CRUD (Admin) ───────────────────────────────────────
+app.get('/api/users', requireAdmin, async (req, res) => {
+  const { rows } = await pgPool.query('SELECT id,username,email,role,active,created_at FROM users ORDER BY created_at');
+  res.json(rows);
+});
+
+app.post('/api/users', requireAdmin, async (req, res) => {
+  const { username, email, password, role='customer' } = req.body;
+  if (!username || !password) return res.status(400).json({ error: 'Username und Passwort erforderlich' });
+  try {
+    const hash = await bcrypt.hash(password, 10);
+    const { rows } = await pgPool.query(
+      "INSERT INTO users (username,email,password_hash,role) VALUES ($1,$2,$3,$4) RETURNING id",
+      [username, email||null, hash, role]);
+    res.json({ id: rows[0].id });
+  } catch(e) { res.status(400).json({ error: e.message.includes('unique') ? 'Username bereits vergeben' : e.message }); }
+});
+
+app.put('/api/users/:id', requireAdmin, async (req, res) => {
+  const { username, email, password, role, active } = req.body;
+  try {
+    if (password && password.trim()) {
+      const hash = await bcrypt.hash(password, 10);
+      await pgPool.query('UPDATE users SET username=$1,email=$2,password_hash=$3,role=$4,active=$5 WHERE id=$6',
+        [username, email||null, hash, role, active, req.params.id]);
+    } else {
+      await pgPool.query('UPDATE users SET username=$1,email=$2,role=$3,active=$4 WHERE id=$5',
+        [username, email||null, role, active, req.params.id]);
+    }
+    res.json({ ok: true });
+  } catch(e) { res.status(400).json({ error: e.message }); }
+});
+
+app.delete('/api/users/:id', requireAdmin, async (req, res) => {
+  if (req.user.id === req.params.id) return res.status(400).json({ error: 'Eigenen Account nicht löschbar' });
+  await pgPool.query('DELETE FROM users WHERE id=$1', [req.params.id]);
+  res.json({ ok: true });
+});
+
+app.get('/api/users/:id/packages', requireAdmin, async (req, res) => {
+  const { rows } = await pgPool.query('SELECT package_id FROM user_packages WHERE user_id=$1', [req.params.id]);
+  res.json(rows.map(r => r.package_id));
+});
+
+app.put('/api/users/:id/packages', requireAdmin, async (req, res) => {
+  const { packageIds=[] } = req.body;
+  await pgPool.query('DELETE FROM user_packages WHERE user_id=$1', [req.params.id]);
+  for (const pid of packageIds)
+    await pgPool.query('INSERT INTO user_packages (user_id,package_id) VALUES ($1,$2) ON CONFLICT DO NOTHING', [req.params.id, pid]);
+  res.json({ ok: true });
+});
+
+// ─── Packages CRUD (Admin) ────────────────────────────────────
+app.get('/api/packages', requireAdmin, async (req, res) => {
+  const { rows } = await pgPool.query('SELECT * FROM packages ORDER BY name');
+  res.json(rows);
+});
+
+app.post('/api/packages', requireAdmin, async (req, res) => {
+  const { name, description='' } = req.body;
+  if (!name) return res.status(400).json({ error: 'Name erforderlich' });
+  const { rows } = await pgPool.query('INSERT INTO packages (name,description) VALUES ($1,$2) RETURNING *', [name, description]);
+  res.json(rows[0]);
+});
+
+app.put('/api/packages/:id', requireAdmin, async (req, res) => {
+  const { name, description='' } = req.body;
+  await pgPool.query('UPDATE packages SET name=$1,description=$2 WHERE id=$3', [name, description, req.params.id]);
+  res.json({ ok: true });
+});
+
+app.delete('/api/packages/:id', requireAdmin, async (req, res) => {
+  await pgPool.query('DELETE FROM packages WHERE id=$1', [req.params.id]);
+  res.json({ ok: true });
+});
+
+app.get('/api/packages/:id/instances', requireAdmin, async (req, res) => {
+  const { rows } = await pgPool.query('SELECT instance_id FROM package_instances WHERE package_id=$1', [req.params.id]);
+  res.json(rows.map(r => r.instance_id));
+});
+
+app.put('/api/packages/:id/instances', requireAdmin, async (req, res) => {
+  const { instanceIds=[] } = req.body;
+  await pgPool.query('DELETE FROM package_instances WHERE package_id=$1', [req.params.id]);
+  for (const iid of instanceIds)
+    await pgPool.query('INSERT INTO package_instances (package_id,instance_id) VALUES ($1,$2) ON CONFLICT DO NOTHING', [req.params.id, iid]);
+  res.json({ ok: true });
+});
 
 // ─── SSH Helper ──────────────────────────────────────────────
 function sshExec(server, command) {
@@ -307,6 +520,16 @@ app.get('/api/catalog/hub-search', async (req, res) => {
 
 // ─── INSTANCES (list + auto-sync from docker ps) ─────────────
 app.get('/api/instances', async (req, res) => {
+  // Customers: return only their package instances, no docker sync
+  if (req.user.role !== 'admin') {
+    const { rows } = await pgPool.query(
+      `SELECT DISTINCT pi.instance_id FROM package_instances pi
+       JOIN user_packages up ON up.package_id=pi.package_id WHERE up.user_id=$1`, [req.user.id]);
+    const ids = rows.map(r => r.instance_id);
+    if (!ids.length) return res.json([]);
+    const ph = ids.map((_,i)=>'?').join(',');
+    return res.json(db.prepare(`SELECT i.*,s.name as server_name,s.host as server_host FROM instances i JOIN servers s ON i.server_id=s.id WHERE i.id IN (${ph})`).all(...ids));
+  }
   const servers = db.prepare('SELECT * FROM servers').all();
   await Promise.all(servers.map(async srv => {
     const server = { host: srv.host, port: srv.port, username: srv.username, password: srv.password, ssh_key: srv.ssh_key };
@@ -524,6 +747,8 @@ app.post('/api/templates/:templateId/deploy/:serverId', async (req, res) => {
 
 // ─── INSTANCE ACTIONS ────────────────────────────────────────
 app.post('/api/instances/:id/action', async (req, res) => {
+  if (req.user.role !== 'admin' && !(await canAccessInstance(req.user.id, req.params.id)))
+    return res.status(403).json({ error: 'Kein Zugriff auf diese Instanz' });
   const inst = db.prepare('SELECT i.*, s.* FROM instances i JOIN servers s ON i.server_id=s.id WHERE i.id=?').get(req.params.id);
   if (!inst) return res.status(404).json({ error: 'Not found' });
   const srv = { host: inst.host, port: inst.port, username: inst.username, password: inst.password, ssh_key: inst.ssh_key };
@@ -671,4 +896,7 @@ wss.on('connection', (ws, request) => {
   conn.connect(cfg);
 });
 
-httpServer.listen(PORT, () => console.log(`n8n Dashboard running on :${PORT}`));
+(async () => {
+  await initPG();
+  httpServer.listen(PORT, () => console.log(`[Fleet] Running on port ${PORT}`));
+})();

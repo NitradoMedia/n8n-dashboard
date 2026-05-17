@@ -1,6 +1,20 @@
-version: "3.8"
-
 services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: fleet-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: fleet
+      POSTGRES_PASSWORD: fleet_secret_2024
+      POSTGRES_DB: fleet_auth
+    volumes:
+      - fleet_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fleet -d fleet_auth"]
+      interval: 5s
+      timeout: 5s
+      retries: 15
+
   n8n-fleet:
     build: .
     container_name: n8n-fleet-dashboard
@@ -12,6 +26,16 @@ services:
     environment:
       - PORT=3000
       - DB_PATH=/data/dashboard.db
+      - PG_HOST=postgres
+      - PG_PORT=5432
+      - PG_USER=fleet
+      - PG_PASSWORD=fleet_secret_2024
+      - PG_DB=fleet_auth
+      - JWT_SECRET=nitrado-fleet-jwt-secret-change-in-production
+    depends_on:
+      postgres:
+        condition: service_healthy
 
 volumes:
   n8n_fleet_data:
+  fleet_pg_data:

@@ -19,7 +19,7 @@
     --mono: 'JetBrains Mono', monospace; --sans: 'Syne', sans-serif;
   }
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  body { background: var(--bg); color: var(--text); font-family: var(--mono); font-size: 13px; min-height: 100vh; display: flex; overflow: hidden; }
+  body { background: var(--bg); color: var(--text); font-family: var(--mono); font-size: 13px; height: 100vh; display: flex; overflow: hidden; }
 
   /* Sidebar */
   .sidebar { width: 210px; min-height: 100vh; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; flex-shrink: 0; transition: transform 0.25s ease; z-index: 500; }
@@ -259,9 +259,112 @@
   ::-webkit-scrollbar { width: 6px; height: 6px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+
+  /* Login */
+  .login-overlay { position: fixed; inset: 0; background: var(--bg); z-index: 9000; display: flex; align-items: center; justify-content: center; }
+  .login-overlay.hidden { display: none; }
+  .login-card { background: var(--surface); border: 1px solid var(--border2); border-radius: 10px; padding: 40px 36px; width: 360px; max-width: 96vw; }
+  .login-logo { font-family: var(--sans); font-size: 20px; font-weight: 800; color: #fff; margin-bottom: 4px; }
+  .login-logo span { color: var(--accent); }
+  .login-sub { font-size: 11px; color: var(--text-muted); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 32px; }
+  .login-error { background: rgba(255,71,87,0.12); border: 1px solid rgba(255,71,87,0.3); border-radius: 4px; color: var(--red); font-size: 12px; padding: 8px 12px; margin-bottom: 14px; display: none; }
+  .login-error.visible { display: block; }
+  /* User/Package management */
+  .user-table { width: 100%; border-collapse: collapse; }
+  .user-table th { text-align: left; font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; padding: 8px 12px; border-bottom: 1px solid var(--border); }
+  .user-table td { padding: 10px 12px; border-bottom: 1px solid var(--border); font-size: 12px; vertical-align: middle; }
+  .user-table tr:hover td { background: rgba(255,255,255,0.02); }
+  .role-badge { display: inline-block; padding: 2px 8px; border-radius: 3px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+  .role-badge.admin { background: rgba(232,99,10,0.15); color: var(--accent); border: 1px solid rgba(232,99,10,0.3); }
+  .role-badge.customer { background: rgba(78,205,196,0.12); color: var(--blue); border: 1px solid rgba(78,205,196,0.3); }
+  .pkg-card { background: var(--panel); border: 1px solid var(--border); border-radius: 6px; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+  .pkg-name { font-family: var(--sans); font-size: 14px; font-weight: 700; color: #fff; }
+  .pkg-desc { font-size: 11px; color: var(--text-dim); }
+  .pkg-stats { font-size: 10px; color: var(--text-muted); }
 </style>
 </head>
 <body>
+
+<!-- ══ Login ══════════════════════════════════════════════════ -->
+<div class="login-overlay" id="login-overlay">
+  <div class="login-card">
+    <div class="login-logo">⬡ <span>NitradoMedia</span> Fleet</div>
+    <div class="login-sub">Deployment Dashboard</div>
+    <div class="login-error" id="login-error"></div>
+    <div class="form-group">
+      <label class="form-label">Benutzername</label>
+      <input class="form-control" id="login-username" placeholder="admin" autocomplete="username" onkeydown="if(event.key==='Enter')document.getElementById('login-password').focus()">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Passwort</label>
+      <input class="form-control" id="login-password" type="password" placeholder="••••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
+    </div>
+    <button class="btn btn-primary" style="width:100%;margin-top:8px" id="login-btn" onclick="doLogin()">Anmelden</button>
+  </div>
+</div>
+
+<!-- ══ Modal: User ════════════════════════════════════════════ -->
+<div class="modal-overlay" id="modal-user">
+  <div class="modal" style="width:480px">
+    <div class="modal-header">
+      <div class="modal-title" id="user-modal-title">Benutzer hinzufügen</div>
+      <button class="modal-close" onclick="closeModal('modal-user')">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="user-edit-id">
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Benutzername</label><input class="form-control" id="u-username" placeholder="johndoe"></div>
+        <div class="form-group"><label class="form-label">E-Mail (optional)</label><input class="form-control" id="u-email" placeholder="john@example.com" type="email"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Passwort</label><input class="form-control" id="u-password" type="password" placeholder="Neues Passwort (leer = unverändert)"></div>
+        <div class="form-group"><label class="form-label">Rolle</label>
+          <select class="form-control" id="u-role">
+            <option value="customer">Kunde</option>
+            <option value="admin">Admin</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group" style="display:flex;align-items:center;gap:10px">
+        <input type="checkbox" id="u-active" checked style="accent-color:var(--accent)">
+        <label for="u-active" style="font-size:12px;color:var(--text-dim)">Konto aktiv</label>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-user')">Abbrechen</button>
+      <button class="btn btn-primary" onclick="saveUser()">Speichern</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ Modal: Package ══════════════════════════════════════════ -->
+<div class="modal-overlay" id="modal-package">
+  <div class="modal" style="width:560px">
+    <div class="modal-header">
+      <div class="modal-title" id="pkg-modal-title">Paket erstellen</div>
+      <button class="modal-close" onclick="closeModal('modal-package')">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="pkg-edit-id">
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Paket-Name</label><input class="form-control" id="pkg-name" placeholder="Basis-Paket"></div>
+        <div class="form-group"><label class="form-label">Beschreibung</label><input class="form-control" id="pkg-desc" placeholder="Kurze Beschreibung..."></div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Instanzen zuweisen</label>
+        <div id="pkg-instances-list" style="display:flex;flex-direction:column;gap:6px;max-height:220px;overflow-y:auto;margin-top:4px"></div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Kunden zuweisen</label>
+        <div id="pkg-users-list" style="display:flex;flex-direction:column;gap:6px;max-height:160px;overflow-y:auto;margin-top:4px"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-package')">Abbrechen</button>
+      <button class="btn btn-primary" onclick="savePackage()">Speichern</button>
+    </div>
+  </div>
+</div>
 
 <nav class="sidebar">
   <div class="logo">
@@ -271,11 +374,13 @@
   <div class="nav">
     <div class="nav-item active" onclick="showPage('dashboard')"><span class="nav-icon">◈</span> Dashboard</div>
     <div class="nav-item" onclick="showPage('instances')"><span class="nav-icon">⬡</span> Instances</div>
-    <div class="nav-item" onclick="showPage('servers')"><span class="nav-icon">⬢</span> Server</div>
+    <div class="nav-item admin-only" onclick="showPage('servers')"><span class="nav-icon">⬢</span> Server</div>
     <div class="nav-item" onclick="showPage('monitor')"><span class="nav-icon">▦</span> Monitor</div>
-    <div class="nav-item" onclick="showPage('katalog')"><span class="nav-icon">⊞</span> Image-Katalog</div>
-    <div class="nav-item" onclick="showPage('vorlagen')"><span class="nav-icon">◧</span> Vorlagen</div>
-    <div class="nav-item" onclick="showPage('settings')"><span class="nav-icon">◎</span> Einstellungen</div>
+    <div class="nav-item admin-only" onclick="showPage('katalog')"><span class="nav-icon">⊞</span> Image-Katalog</div>
+    <div class="nav-item admin-only" onclick="showPage('vorlagen')"><span class="nav-icon">◧</span> Vorlagen</div>
+    <div class="nav-item admin-only" onclick="showPage('settings')"><span class="nav-icon">◎</span> Einstellungen</div>
+    <div class="nav-item admin-only" onclick="showPage('users')"><span class="nav-icon">👤</span> Benutzer</div>
+    <div class="nav-item admin-only" onclick="showPage('packages')"><span class="nav-icon">📦</span> Pakete</div>
   </div>
   <div class="sidebar-footer">NitradoMedia Fleet v2.0<br><span id="footer-time"></span></div>
 </nav>
@@ -285,8 +390,10 @@
   <div class="topbar">
     <button class="hamburger" onclick="toggleSidebar()" aria-label="Menü">☰</button>
     <div class="topbar-title" id="page-title">Dashboard</div>
+    <span id="topbar-user" style="font-size:11px;color:var(--text-muted)"></span>
     <button class="btn btn-ghost btn-sm" onclick="refreshAll()">↻</button>
-    <button class="btn btn-primary btn-sm" onclick="openDeployModal()">+ Deploy</button>
+    <button class="btn btn-primary btn-sm admin-only" onclick="openDeployModal()">+ Deploy</button>
+    <button class="btn btn-ghost btn-sm" onclick="logout()" style="color:var(--red);border-color:rgba(255,71,87,0.3)">⏻ Logout</button>
   </div>
   <div class="content">
 
@@ -403,6 +510,33 @@
             <p>⬢ Mehrere Server per SSH</p>
           </div>
         </div>
+      </div>
+    </div>
+
+    <!-- Users -->
+    <div class="page" id="page-users">
+      <div class="section-header">
+        <div class="section-title">Benutzerverwaltung</div>
+        <button class="btn btn-primary btn-sm" onclick="openUserModal()">+ Benutzer hinzufügen</button>
+      </div>
+      <div class="card">
+        <div class="card-body" style="padding:0">
+          <table class="user-table">
+            <thead><tr><th>Benutzername</th><th>E-Mail</th><th>Rolle</th><th>Status</th><th>Pakete</th><th>Erstellt</th><th>Aktionen</th></tr></thead>
+            <tbody id="users-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Packages -->
+    <div class="page" id="page-packages">
+      <div class="section-header">
+        <div class="section-title">Paket-Verwaltung</div>
+        <button class="btn btn-primary btn-sm" onclick="openPackageModal()">+ Paket erstellen</button>
+      </div>
+      <div class="grid-2" id="packages-grid">
+        <div class="empty-state"><div class="empty-icon">📦</div><div class="empty-text">Keine Pakete</div></div>
       </div>
     </div>
 
@@ -627,6 +761,7 @@
 // ── State ────────────────────────────────────────────────────
 const API = '';
 let servers = [], instances = [], templates = [], catalog = [];
+let currentUser = null;
 let settings = JSON.parse(localStorage.getItem('n8n-fleet-settings') || '{"tz":"Europe/Berlin","user":"admin","pass":"","port":5678}');
 let currentDeployTab = 'image';
 let composeFile = null;
@@ -635,15 +770,71 @@ let term = null, fitAddon = null, termWs = null;
 let activeCatFilter = 'Alle';
 let catalogEditId = null;
 
+// ── Auth ─────────────────────────────────────────────────────
+function getToken() { return localStorage.getItem('fleet-token'); }
+function setToken(t) { localStorage.setItem('fleet-token', t); }
+function clearToken() { localStorage.removeItem('fleet-token'); localStorage.removeItem('fleet-user'); }
+
+async function doLogin() {
+  const username = document.getElementById('login-username').value.trim();
+  const password = document.getElementById('login-password').value;
+  const errEl    = document.getElementById('login-error');
+  const btn      = document.getElementById('login-btn');
+  if (!username || !password) { showLoginError('Bitte Benutzername und Passwort eingeben'); return; }
+  btn.disabled = true; btn.textContent = '⟳ Anmelden...';
+  errEl.classList.remove('visible');
+  try {
+    const res  = await fetch('/api/auth/login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ username, password }) });
+    const data = await res.json();
+    if (!res.ok) { showLoginError(data.error || 'Fehler'); return; }
+    setToken(data.token);
+    localStorage.setItem('fleet-user', JSON.stringify(data.user));
+    currentUser = data.user;
+    applyRole();
+    document.getElementById('login-overlay').classList.add('hidden');
+    await refreshAll();
+  } catch(e) { showLoginError('Server nicht erreichbar'); }
+  finally { btn.disabled = false; btn.textContent = 'Anmelden'; }
+}
+
+function showLoginError(msg) {
+  const el = document.getElementById('login-error');
+  el.textContent = msg; el.classList.add('visible');
+}
+
+function logout() {
+  clearToken(); currentUser = null;
+  document.getElementById('login-overlay').classList.remove('hidden');
+  document.getElementById('login-password').value = '';
+}
+
+function applyRole() {
+  const isAdmin = currentUser?.role === 'admin';
+  document.querySelectorAll('.admin-only').forEach(el => el.style.display = isAdmin ? '' : 'none');
+  const userEl = document.getElementById('topbar-user');
+  if (userEl) userEl.textContent = `${currentUser?.username || ''} · ${isAdmin ? 'Admin' : 'Kunde'}`;
+}
+
 // ── Init ─────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   loadSettings();
-  refreshAll();
   setInterval(updateClock, 1000);
-  setInterval(refreshAll, 30000);
   document.getElementById('d-save-template').addEventListener('change', e => {
     document.getElementById('d-template-name').style.display = e.target.checked ? '' : 'none';
   });
+  // Check existing token
+  const savedUser = localStorage.getItem('fleet-user');
+  const token = getToken();
+  if (token && savedUser) {
+    currentUser = JSON.parse(savedUser);
+    applyRole();
+    document.getElementById('login-overlay').classList.add('hidden');
+    refreshAll();
+    setInterval(refreshAll, 30000);
+  } else {
+    clearToken();
+    // show login
+  }
 });
 
 function updateClock() {
@@ -669,10 +860,11 @@ function saveSettings() {
 
 // ── API ──────────────────────────────────────────────────────
 async function api(method, path, body) {
-  const res = await fetch(API + path, {
-    method, headers: {'Content-Type':'application/json'},
-    body: body ? JSON.stringify(body) : undefined
-  });
+  const headers = { 'Content-Type': 'application/json' };
+  const token = getToken();
+  if (token) headers['Authorization'] = 'Bearer ' + token;
+  const res = await fetch(API + path, { method, headers, body: body ? JSON.stringify(body) : undefined });
+  if (res.status === 401) { logout(); return {}; }
   return res.json();
 }
 
@@ -734,6 +926,52 @@ function renderTemplates() {
     </div>`).join('')}</div>`;
 }
 
+// ── Simple Icons mapping ──────────────────────────────────────
+const ICON_SLUGS = {
+  'n8n':'n8n','nextcloud':'nextcloud','wordpress':'wordpress','nginx':'nginx',
+  'postgresql':'postgresql','mariadb':'mariadb','mongodb':'mongodb','redis':'redis',
+  'gitea':'gitea','gitlab ce':'gitlab','gitlab':'gitlab','grafana':'grafana',
+  'ghost':'ghost','traefik':'traefikproxy','caddy':'caddy','jellyfin':'jellyfin',
+  'plex':'plex','prometheus':'prometheus','mattermost':'mattermost','drupal':'drupal',
+  'joomla':'joomla','matomo':'matomo','influxdb':'influxdb','syncthing':'syncthing',
+  'minio':'minio','vaultwarden':'bitwarden','portainer':'portainer','netdata':'netdata',
+  'rocket.chat':'rocketchat','adminer':'adminer','navidrome':'navidrome',
+  'photoprism':'photoprism','uptime kuma':'uptimekuma','authelia':'authelia',
+  'authentik':'authentik','outline':'outline','wikijs':'wikidotjs','bookstack':'bookstack',
+  'vikunja':'vikunja','seafile':'seafile','filebrowser':'filebrowser','activepieces':'activepieces',
+  'matrix synapse':'matrix','drone ci':'drone','registry':'docker','nexus repository':'sonatype',
+  'pgadmin':'postgresql','couchdb':'apachecouchdb','loki':'grafana','zabbix':'zabbix',
+  'immich':'immich','kavita':'kavita','listmonk':'listmonk','huginn':'huginn',
+  'windmill':'windmill','jitsi meet':'jitsi','crowdsec':'crowdsec',
+};
+
+function _iconColors(name) {
+  const palette = ['#e8630a','#3ddc84','#4ecdc4','#ffd32a','#ff6b9d','#a29bfe','#74b9ff','#fd79a8'];
+  return palette[name.charCodeAt(0) % palette.length];
+}
+function iconFallback(el, initial, color) {
+  const wrapper = el.parentNode;
+  wrapper.style.background = color + '22';
+  wrapper.style.border = '1px solid ' + color + '44';
+  el.remove();
+  const span = document.createElement('span');
+  span.style.cssText = 'color:' + color + ';font-size:14px;font-weight:800;font-family:var(--sans)';
+  span.textContent = initial;
+  wrapper.appendChild(span);
+}
+function catalogIconHtml(name) {
+  const slug = ICON_SLUGS[name.toLowerCase()];
+  const initial = (name[0] || '?').toUpperCase();
+  const color = _iconColors(name);
+  if (!slug) {
+    return `<div style="width:32px;height:32px;border-radius:6px;background:${color}22;border:1px solid ${color}44;color:${color};font-size:14px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-family:var(--sans)">${initial}</div>`;
+  }
+  return `<div style="width:32px;height:32px;border-radius:6px;background:rgba(255,255,255,0.05);display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden">
+    <img src="https://cdn.simpleicons.org/${slug}/ffffff" width="24" height="24" style="object-fit:contain" loading="lazy"
+      onerror="iconFallback(this,'${initial}','${color}')">
+  </div>`;
+}
+
 // ── Catalog Render ───────────────────────────────────────────
 function renderCatalog() {
   const cats = ['Alle', ...new Set(catalog.map(c => c.category))].sort((a,b) => a==='Alle'?-1:b==='Alle'?1:a.localeCompare(b));
@@ -745,20 +983,25 @@ function renderCatalog() {
   if (!filtered.length) { grid.innerHTML = `<div class="empty-state"><div class="empty-icon">⊞</div><div class="empty-text">Keine Images in dieser Kategorie</div></div>`; return; }
   grid.innerHTML = filtered.map(c => `
     <div class="catalog-card">
-      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
-        <div class="catalog-name">${esc(c.name)}</div>
-        <span class="catalog-category">${esc(c.category)}</span>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:2px">
+        ${catalogIconHtml(c.name)}
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:6px">
+            <div class="catalog-name" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(c.name)}</div>
+            <span class="catalog-category" style="flex-shrink:0">${esc(c.category)}</span>
+          </div>
+          <div class="catalog-image-badge" title="${esc(c.image)}" style="margin-top:3px">⬡ ${esc(c.image)}</div>
+        </div>
       </div>
-      <div class="catalog-image-badge" title="${esc(c.image)}">⬡ ${esc(c.image)}</div>
       <div class="catalog-desc">${esc(c.description||'')}</div>
-      <div style="font-size:10px;color:var(--text-muted);display:flex;gap:12px">
+      <div style="font-size:10px;color:var(--text-muted);display:flex;gap:12px;flex-wrap:wrap">
         ${c.ports.length ? `<span>🔌 ${c.ports.map(p=>p.host+'→'+p.container).join(', ')}</span>` : ''}
         ${c.volumes.length ? `<span>💾 ${c.volumes.length} Vol.</span>` : ''}
         ${c.env.length ? `<span>⚙ ${c.env.length} ENV</span>` : ''}
       </div>
       <div class="catalog-actions">
         <button class="btn btn-green btn-sm" onclick="deployFromCatalog('${c.id}')">▶ Deploy</button>
-        <button class="btn btn-ghost btn-sm" onclick="editCatalogEntry('${c.id}')">✎ Bearbeiten</button>
+        <button class="btn btn-ghost btn-sm" onclick="editCatalogEntry('${c.id}')">✎</button>
         <button class="btn btn-danger btn-sm" onclick="deleteCatalogEntry('${c.id}')">✕</button>
       </div>
     </div>`).join('');
@@ -958,8 +1201,221 @@ function emptyState(icon, text, sub='') {
   return `<div class="empty-state"><div class="empty-icon">${icon}</div><div class="empty-text">${text}</div>${sub?`<div class="empty-sub">${sub}</div>`:''}</div>`;
 }
 
+// ── User Management ──────────────────────────────────────────
+let allUsers = [], allPkgs = [];
+
+async function loadUsers() {
+  allUsers = await api('GET', '/api/users');
+  renderUsers();
+}
+
+function renderUsers() {
+  const tbody = document.getElementById('users-tbody');
+  if (!tbody) return;
+  if (!allUsers.length) { tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:24px">Keine Benutzer</td></tr>'; return; }
+  tbody.innerHTML = allUsers.map(u => `
+    <tr>
+      <td><strong>${esc(u.username)}</strong></td>
+      <td style="color:var(--text-dim)">${esc(u.email||'—')}</td>
+      <td><span class="role-badge ${u.role}">${u.role === 'admin' ? 'Admin' : 'Kunde'}</span></td>
+      <td><span class="badge ${u.active?'running':'stopped'}">${u.active?'Aktiv':'Inaktiv'}</span></td>
+      <td id="upkgs-${u.id}" style="color:var(--text-muted);font-size:11px">…</td>
+      <td style="color:var(--text-muted);font-size:11px">${new Date(u.created_at).toLocaleDateString('de-DE')}</td>
+      <td><div style="display:flex;gap:4px">
+        <button class="btn btn-ghost btn-sm" onclick="editUser('${u.id}')">✎</button>
+        <button class="btn btn-ghost btn-sm" onclick="manageUserPackages('${u.id}')">📦</button>
+        ${u.id !== currentUser?.id ? `<button class="btn btn-danger btn-sm" onclick="deleteUser('${u.id}')">✕</button>` : ''}
+      </div></td>
+    </tr>`).join('');
+  // load package counts
+  allUsers.filter(u => u.role==='customer').forEach(async u => {
+    const pkgs = await api('GET', `/api/users/${u.id}/packages`);
+    const el = document.getElementById(`upkgs-${u.id}`);
+    if (el) el.textContent = pkgs.length ? `${pkgs.length} Paket(e)` : 'Keine Pakete';
+  });
+}
+
+function openUserModal(id=null) {
+  document.getElementById('user-edit-id').value = id||'';
+  document.getElementById('user-modal-title').textContent = id ? 'Benutzer bearbeiten' : 'Benutzer hinzufügen';
+  if (id) {
+    const u = allUsers.find(x=>x.id===id);
+    document.getElementById('u-username').value = u.username;
+    document.getElementById('u-email').value    = u.email||'';
+    document.getElementById('u-role').value     = u.role;
+    document.getElementById('u-active').checked = u.active;
+    document.getElementById('u-password').value = '';
+  } else {
+    document.getElementById('u-username').value = '';
+    document.getElementById('u-email').value    = '';
+    document.getElementById('u-password').value = '';
+    document.getElementById('u-role').value     = 'customer';
+    document.getElementById('u-active').checked = true;
+  }
+  openModal('modal-user');
+}
+
+function editUser(id) { openUserModal(id); }
+
+async function saveUser() {
+  const id = document.getElementById('user-edit-id').value;
+  const body = {
+    username: document.getElementById('u-username').value.trim(),
+    email:    document.getElementById('u-email').value.trim(),
+    password: document.getElementById('u-password').value,
+    role:     document.getElementById('u-role').value,
+    active:   document.getElementById('u-active').checked,
+  };
+  if (!body.username) { toast('Benutzername erforderlich', 'error'); return; }
+  if (!id && !body.password) { toast('Passwort erforderlich', 'error'); return; }
+  const r = id ? await api('PUT', `/api/users/${id}`, body) : await api('POST', '/api/users', body);
+  if (r.error) { toast(r.error, 'error'); return; }
+  toast(id ? 'Benutzer aktualisiert' : 'Benutzer erstellt', 'success');
+  closeModal('modal-user');
+  await loadUsers();
+}
+
+async function deleteUser(id) {
+  if (!confirm('Benutzer wirklich löschen?')) return;
+  await api('DELETE', `/api/users/${id}`);
+  toast('Benutzer gelöscht', 'success');
+  await loadUsers();
+}
+
+async function manageUserPackages(userId) {
+  allPkgs = await api('GET', '/api/packages');
+  const assigned = await api('GET', `/api/users/${userId}/packages`);
+  const user = allUsers.find(u => u.id === userId);
+  const names = allPkgs.map(p => `${assigned.includes(p.id)?'☑':'☐'} ${p.name}`).join('\n');
+  const selected = prompt(`Pakete für "${user?.username}" (kommagetrennte Namen oder "alle"):\nVerfügbar:\n${names}\n\nAktuell: ${allPkgs.filter(p=>assigned.includes(p.id)).map(p=>p.name).join(', ')||'Keine'}`, allPkgs.filter(p=>assigned.includes(p.id)).map(p=>p.name).join(', '));
+  if (selected === null) return;
+  const newIds = selected.toLowerCase().trim() === 'alle'
+    ? allPkgs.map(p=>p.id)
+    : allPkgs.filter(p => selected.split(',').map(s=>s.trim().toLowerCase()).includes(p.name.toLowerCase())).map(p=>p.id);
+  await api('PUT', `/api/users/${userId}/packages`, { packageIds: newIds });
+  toast('Pakete aktualisiert', 'success');
+  await loadUsers();
+}
+
+// ── Package Management ────────────────────────────────────────
+async function loadPackages() {
+  allPkgs = await api('GET', '/api/packages');
+  renderPackages();
+}
+
+async function renderPackages() {
+  const grid = document.getElementById('packages-grid');
+  if (!grid) return;
+  if (!allPkgs.length) { grid.innerHTML = `<div class="empty-state"><div class="empty-icon">📦</div><div class="empty-text">Keine Pakete vorhanden</div><div class="empty-sub">Erstelle ein Paket und weise Instanzen zu</div></div>`; return; }
+  // load instance counts
+  const pkgsWithData = await Promise.all(allPkgs.map(async p => {
+    const instanceIds = await api('GET', `/api/packages/${p.id}/instances`);
+    return { ...p, instanceIds };
+  }));
+  grid.innerHTML = pkgsWithData.map(p => `
+    <div class="pkg-card">
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <div class="pkg-name">📦 ${esc(p.name)}</div>
+        <div style="display:flex;gap:4px">
+          <button class="btn btn-ghost btn-sm" onclick="editPackage('${p.id}')">✎</button>
+          <button class="btn btn-danger btn-sm" onclick="deletePackage('${p.id}')">✕</button>
+        </div>
+      </div>
+      <div class="pkg-desc">${esc(p.description||'')}</div>
+      <div class="pkg-stats">
+        🖥 ${p.instanceIds.length} Instanz(en) zugewiesen
+        <br>📅 Erstellt: ${new Date(p.created_at).toLocaleDateString('de-DE')}
+      </div>
+      <button class="btn btn-ghost btn-sm" style="width:100%" onclick="openPackageModal('${p.id}')">Instanzen & Kunden verwalten</button>
+    </div>`).join('');
+}
+
+async function openPackageModal(id=null) {
+  document.getElementById('pkg-edit-id').value = id||'';
+  document.getElementById('pkg-modal-title').textContent = id ? 'Paket bearbeiten' : 'Paket erstellen';
+  if (id) {
+    const p = allPkgs.find(x=>x.id===id);
+    document.getElementById('pkg-name').value = p?.name||'';
+    document.getElementById('pkg-desc').value = p?.description||'';
+  } else {
+    document.getElementById('pkg-name').value = '';
+    document.getElementById('pkg-desc').value = '';
+  }
+  // Instance checkboxes
+  const assignedIds = id ? await api('GET', `/api/packages/${id}/instances`) : [];
+  const instList = document.getElementById('pkg-instances-list');
+  if (!instances.length) await fetchInstances();
+  instList.innerHTML = instances.length ? instances.map(i => `
+    <label style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:var(--bg);border-radius:4px;cursor:pointer">
+      <input type="checkbox" value="${i.id}" ${assignedIds.includes(i.id)?'checked':''} style="accent-color:var(--accent)">
+      <span style="font-size:12px">${esc(i.name)}</span>
+      <span style="font-size:10px;color:var(--text-muted);margin-left:auto">${esc(i.server_name||'')}</span>
+    </label>`).join('') : '<div style="color:var(--text-muted);font-size:11px">Keine Instanzen vorhanden</div>';
+  // User checkboxes
+  if (!allUsers.length) await loadUsers();
+  const customers = allUsers.filter(u => u.role === 'customer');
+  const assignedUsers = id ? await (async () => {
+    const all = await api('GET', '/api/users');
+    const results = [];
+    for (const u of all.filter(u=>u.role==='customer')) {
+      const upkgs = await api('GET', `/api/users/${u.id}/packages`);
+      if (upkgs.includes(id)) results.push(u.id);
+    }
+    return results;
+  })() : [];
+  document.getElementById('pkg-users-list').innerHTML = customers.length ? customers.map(u => `
+    <label style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:var(--bg);border-radius:4px;cursor:pointer">
+      <input type="checkbox" class="pkg-user-cb" value="${u.id}" ${assignedUsers.includes(u.id)?'checked':''} style="accent-color:var(--blue)">
+      <span style="font-size:12px">${esc(u.username)}</span>
+      <span class="role-badge customer" style="margin-left:auto">Kunde</span>
+    </label>`).join('') : '<div style="color:var(--text-muted);font-size:11px">Keine Kunden vorhanden</div>';
+  openModal('modal-package');
+}
+
+async function savePackage() {
+  const id   = document.getElementById('pkg-edit-id').value;
+  const name = document.getElementById('pkg-name').value.trim();
+  const desc = document.getElementById('pkg-desc').value.trim();
+  if (!name) { toast('Name erforderlich', 'error'); return; }
+  let pkgId = id;
+  if (id) {
+    await api('PUT', `/api/packages/${id}`, { name, description: desc });
+  } else {
+    const r = await api('POST', '/api/packages', { name, description: desc });
+    if (r.error) { toast(r.error, 'error'); return; }
+    pkgId = r.id;
+  }
+  // Save instance assignments
+  const instanceIds = [...document.getElementById('pkg-instances-list').querySelectorAll('input[type=checkbox]:checked')].map(cb => cb.value);
+  await api('PUT', `/api/packages/${pkgId}/instances`, { instanceIds });
+  // Save user assignments
+  const userIds = [...document.getElementById('pkg-users-list').querySelectorAll('.pkg-user-cb:checked')].map(cb => cb.value);
+  for (const uid of userIds) {
+    const current = await api('GET', `/api/users/${uid}/packages`);
+    if (!current.includes(pkgId)) await api('PUT', `/api/users/${uid}/packages`, { packageIds: [...current, pkgId] });
+  }
+  // Remove users that were unchecked
+  const uncheckedUsers = [...document.getElementById('pkg-users-list').querySelectorAll('.pkg-user-cb:not(:checked)')].map(cb => cb.value);
+  for (const uid of uncheckedUsers) {
+    const current = await api('GET', `/api/users/${uid}/packages`);
+    if (current.includes(pkgId)) await api('PUT', `/api/users/${uid}/packages`, { packageIds: current.filter(p=>p!==pkgId) });
+  }
+  toast(id ? 'Paket aktualisiert' : 'Paket erstellt', 'success');
+  closeModal('modal-package');
+  await loadPackages();
+}
+
+async function editPackage(id) { await openPackageModal(id); }
+
+async function deletePackage(id) {
+  if (!confirm('Paket wirklich löschen?')) return;
+  await api('DELETE', `/api/packages/${id}`);
+  toast('Paket gelöscht', 'success');
+  await loadPackages();
+}
+
 // ── Navigation ───────────────────────────────────────────────
-const PAGE_TITLES = { dashboard:'Dashboard', instances:'Instanzen', servers:'Server', monitor:'Live Monitor', katalog:'Image-Katalog', vorlagen:'Vorlagen', settings:'Einstellungen' };
+const PAGE_TITLES = { dashboard:'Dashboard', instances:'Instanzen', servers:'Server', monitor:'Live Monitor', katalog:'Image-Katalog', vorlagen:'Vorlagen', settings:'Einstellungen', users:'Benutzer', packages:'Pakete' };
 
 function showPage(name) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
@@ -973,6 +1429,8 @@ function showPage(name) {
   if (name === 'monitor') { fetchStats(); statsInterval = setInterval(fetchStats, 10000); }
   if (name === 'vorlagen') fetchTemplates().then(renderTemplates);
   if (name === 'katalog')  fetchCatalog().then(renderCatalog);
+  if (name === 'users')    loadUsers();
+  if (name === 'packages') loadPackages();
   // close sidebar on mobile after navigation
   if (window.innerWidth <= 768) closeSidebar();
 }
