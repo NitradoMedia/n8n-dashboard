@@ -381,6 +381,7 @@
     <div class="nav-item admin-only" onclick="showPage('settings')"><span class="nav-icon">◎</span> Einstellungen</div>
     <div class="nav-item admin-only" onclick="showPage('users')"><span class="nav-icon">👤</span> Benutzer</div>
     <div class="nav-item admin-only" onclick="showPage('packages')"><span class="nav-icon">📦</span> Pakete</div>
+    <div class="nav-item" onclick="showPage('requests')"><span class="nav-icon">🔔</span> Anfragen <span id="req-badge" style="display:none;background:var(--accent);color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;margin-left:auto"></span></div>
   </div>
   <div class="sidebar-footer">NitradoMedia Fleet v2.0<br><span id="footer-time"></span></div>
 </nav>
@@ -407,7 +408,7 @@
       </div>
       <div class="section-header">
         <div class="section-title">Alle Instanzen</div>
-        <button class="btn btn-primary btn-sm" onclick="openDeployModal()">+ Deploy</button>
+        <button class="btn btn-primary btn-sm admin-only" onclick="openDeployModal()">+ Deploy</button>
       </div>
       <div class="instances-grid" id="dashboard-instances">
         <div class="empty-state"><div class="empty-icon">⬡</div><div class="empty-text">Keine Instanzen vorhanden</div><div class="empty-sub">Klicke auf „Deploy" um zu starten</div></div>
@@ -418,7 +419,7 @@
     <div class="page" id="page-instances">
       <div class="section-header">
         <div class="section-title">Instanzen</div>
-        <button class="btn btn-primary btn-sm" onclick="openDeployModal()">+ Deploy</button>
+        <button class="btn btn-primary btn-sm admin-only" onclick="openDeployModal()">+ Deploy</button>
       </div>
       <div class="instances-grid" id="instances-list">
         <div class="empty-state"><div class="empty-icon">⬡</div><div class="empty-text">Keine Instanzen</div></div>
@@ -474,7 +475,7 @@
     <div class="page" id="page-vorlagen">
       <div class="section-header">
         <div class="section-title">Vorlagen</div>
-        <button class="btn btn-primary btn-sm" onclick="openDeployModal()">+ Aus Vorlage deployen</button>
+        <button class="btn btn-primary btn-sm admin-only" onclick="openDeployModal()">+ Aus Vorlage deployen</button>
       </div>
       <div class="template-grid" id="templates-list">
         <div class="empty-state"><div class="empty-icon">◧</div><div class="empty-text">Keine Vorlagen gespeichert</div><div class="empty-sub">Beim Deployen „Als Vorlage speichern" aktivieren</div></div>
@@ -602,6 +603,67 @@
       </div>
     </div>
 
+    <!-- Anfragen -->
+    <div class="page" id="page-requests">
+      <div class="section-header">
+        <div class="section-title">Instanz-Anfragen</div>
+        <button class="btn btn-primary btn-sm customer-only" onclick="openRequestCatalog()">+ Instanz anfragen</button>
+      </div>
+      <div id="requests-list">
+        <div class="empty-state"><div class="empty-icon">🔔</div><div class="empty-text">Keine Anfragen</div></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Approve Modal -->
+<div class="modal-overlay" id="approve-modal" style="display:none">
+  <div class="modal" style="max-width:440px">
+    <div class="modal-header"><span id="approve-modal-title">Anfrage freigeben</span><button class="modal-close" onclick="closeApproveModal()">✕</button></div>
+    <div class="modal-body">
+      <div style="background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:10px;margin-bottom:14px;font-size:12px">
+        <div style="color:var(--text-muted);font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Anfrage</div>
+        <div id="approve-req-info" style="color:var(--text)"></div>
+      </div>
+      <input type="hidden" id="approve-req-id">
+      <input type="hidden" id="approve-user-id">
+      <div class="form-group">
+        <label class="form-label">Instanzname</label>
+        <input class="form-control" id="approve-name" placeholder="mein-service">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Server</label>
+        <select class="form-control" id="approve-server"></select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Paket (Kunde)</label>
+        <select class="form-control" id="approve-package"></select>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeApproveModal()">Abbrechen</button>
+      <button class="btn btn-primary" onclick="submitApproval()">▶ Freigeben & Deployen</button>
+    </div>
+  </div>
+</div>
+
+<!-- Request Catalog Modal (Customer) -->
+<div class="modal-overlay" id="req-catalog-modal" style="display:none">
+  <div class="modal" style="max-width:620px">
+    <div class="modal-header"><span>Instanz anfragen</span><button class="modal-close" onclick="document.getElementById('req-catalog-modal').style.display='none'">✕</button></div>
+    <div class="modal-body">
+      <div class="cat-filter" id="req-cat-filter" style="margin-bottom:12px"></div>
+      <div id="req-catalog-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;max-height:380px;overflow-y:auto"></div>
+      <div class="form-group" style="margin-top:14px">
+        <label class="form-label">Anmerkung (optional)</label>
+        <input class="form-control" id="req-note" placeholder="z.B. benötigte Konfiguration...">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="document.getElementById('req-catalog-modal').style.display='none'">Abbrechen</button>
+      <button class="btn btn-primary" id="req-submit-btn" onclick="submitRequest()" disabled>Anfragen</button>
+    </div>
   </div>
 </div>
 
@@ -873,6 +935,7 @@ function logout() {
 function applyRole() {
   const isAdmin = currentUser?.role === 'admin';
   document.querySelectorAll('.admin-only').forEach(el => el.style.display = isAdmin ? '' : 'none');
+  document.querySelectorAll('.customer-only').forEach(el => el.style.display = isAdmin ? 'none' : '');
   const userEl = document.getElementById('topbar-user');
   if (userEl) userEl.textContent = `${currentUser?.username || ''} · ${isAdmin ? 'Admin' : 'Kunde'}`;
 }
@@ -1034,6 +1097,7 @@ async function api(method, path, body) {
 async function refreshAll() {
   await Promise.all([fetchServers(), fetchInstances(), fetchTemplates(), fetchCatalog()]);
   renderDashboard(); renderInstancesList(); renderServersList(); renderTemplates(); renderCatalog();
+  loadRequests();
 }
 
 async function fetchServers()   { try { servers   = await api('GET','/api/servers');   } catch {} }
@@ -1163,9 +1227,12 @@ function renderCatalog() {
         ${c.env.length ? `<span>⚙ ${c.env.length} ENV</span>` : ''}
       </div>
       <div class="catalog-actions">
-        <button class="btn btn-green btn-sm" onclick="deployFromCatalog('${c.id}')">▶ Deploy</button>
-        <button class="btn btn-ghost btn-sm" onclick="editCatalogEntry('${c.id}')">✎</button>
-        <button class="btn btn-danger btn-sm" onclick="deleteCatalogEntry('${c.id}')">✕</button>
+        ${currentUser?.role === 'admin'
+          ? `<button class="btn btn-green btn-sm" onclick="deployFromCatalog('${c.id}')">▶ Deploy</button>
+             <button class="btn btn-ghost btn-sm" onclick="editCatalogEntry('${c.id}')">✎</button>
+             <button class="btn btn-danger btn-sm" onclick="deleteCatalogEntry('${c.id}')">✕</button>`
+          : `<button class="btn btn-primary btn-sm" onclick="requestFromCatalog('${c.id}')">+ Anfragen</button>`
+        }
       </div>
     </div>`).join('');
   // also populate deploy modal preset dropdown
@@ -1578,7 +1645,7 @@ async function deletePackage(id) {
 }
 
 // ── Navigation ───────────────────────────────────────────────
-const PAGE_TITLES = { dashboard:'Dashboard', instances:'Instanzen', servers:'Server', monitor:'Live Monitor', katalog:'Image-Katalog', vorlagen:'Vorlagen', settings:'Einstellungen', users:'Benutzer', packages:'Pakete' };
+const PAGE_TITLES = { dashboard:'Dashboard', instances:'Instanzen', servers:'Server', monitor:'Live Monitor', katalog:'Image-Katalog', vorlagen:'Vorlagen', settings:'Einstellungen', users:'Benutzer', packages:'Pakete', requests:'Anfragen' };
 
 function showPage(name) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
@@ -1594,6 +1661,7 @@ function showPage(name) {
   if (name === 'katalog')  fetchCatalog().then(renderCatalog);
   if (name === 'users')    loadUsers();
   if (name === 'packages') loadPackages();
+  if (name === 'requests') loadRequests();
   // close sidebar on mobile after navigation
   if (window.innerWidth <= 768) closeSidebar();
 }
@@ -2045,6 +2113,183 @@ function esc(s) {
 document.querySelectorAll('.modal-overlay').forEach(o => {
   o.addEventListener('click', e => { if (e.target === o) o.classList.remove('open'); });
 });
+
+// ── Instance Requests ─────────────────────────────────────────
+let requests = [];
+let selectedRequestCatalogId = null;
+
+async function loadRequests() {
+  try { requests = await api('GET', '/api/instance-requests'); } catch { requests = []; }
+  renderRequests();
+  updateRequestBadge();
+}
+
+function updateRequestBadge() {
+  const pending = requests.filter(r => r.status === 'pending').length;
+  const badge = document.getElementById('req-badge');
+  if (pending > 0) { badge.textContent = pending; badge.style.display = ''; }
+  else { badge.style.display = 'none'; }
+}
+
+function renderRequests() {
+  const el = document.getElementById('requests-list');
+  if (!el) return;
+  if (!requests.length) {
+    el.innerHTML = `<div class="empty-state"><div class="empty-icon">🔔</div><div class="empty-text">Keine Anfragen vorhanden</div></div>`;
+    return;
+  }
+  const isAdmin = currentUser?.role === 'admin';
+  const statusLabel = { pending: '⏳ Ausstehend', approved: '✅ Freigegeben', rejected: '✗ Abgelehnt' };
+  const statusColor = { pending: 'var(--accent)', approved: 'var(--green)', rejected: 'var(--red)' };
+
+  el.innerHTML = requests.map(r => `
+    <div class="card" style="margin-bottom:10px">
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <div style="flex:1;min-width:200px">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+            <span style="font-weight:700;color:#fff">${esc(r.catalog_name)}</span>
+            <span style="font-size:10px;color:var(--text-muted)">${esc(r.catalog_image)}</span>
+          </div>
+          ${isAdmin ? `<div style="font-size:11px;color:var(--text-muted)">👤 ${esc(r.username || '')}</div>` : ''}
+          ${r.note ? `<div style="font-size:11px;color:var(--text-dim);margin-top:2px">💬 ${esc(r.note)}</div>` : ''}
+          <div style="font-size:10px;color:var(--text-muted);margin-top:4px">${new Date(r.created_at).toLocaleString('de-DE')}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:11px;font-weight:600;color:${statusColor[r.status]||'var(--text-dim)'}">${statusLabel[r.status]||r.status}</span>
+          ${isAdmin && r.status === 'pending' ? `
+            <button class="btn btn-primary btn-sm" onclick="openApproveModal('${r.id}','${esc(r.catalog_name)}','${esc(r.catalog_image)}','${r.user_id}')">▶ Freigeben</button>
+            <button class="btn btn-danger btn-sm" onclick="rejectRequest('${r.id}')">✕ Ablehnen</button>
+          ` : ''}
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+async function openApproveModal(reqId, catalogName, catalogImage, userId) {
+  document.getElementById('approve-req-id').value = reqId;
+  document.getElementById('approve-user-id').value = userId;
+  document.getElementById('approve-modal-title').textContent = `Freigeben: ${catalogName}`;
+  document.getElementById('approve-req-info').textContent = `${catalogName} (${catalogImage})`;
+  document.getElementById('approve-name').value = catalogName.toLowerCase().replace(/[^a-z0-9]/g, '-');
+
+  const serverSel = document.getElementById('approve-server');
+  serverSel.innerHTML = servers.map(s => `<option value="${s.id}">${esc(s.name)} (${esc(s.host)})</option>`).join('');
+
+  const pkgSel = document.getElementById('approve-package');
+  pkgSel.innerHTML = '<option value="">Lade Pakete...</option>';
+  try {
+    const pkgs = await api('GET', `/api/users/${userId}/packages`);
+    pkgSel.innerHTML = pkgs.length
+      ? pkgs.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join('')
+      : '<option value="">Keine Pakete für diesen Kunden</option>';
+  } catch { pkgSel.innerHTML = '<option value="">Fehler beim Laden</option>'; }
+
+  document.getElementById('approve-modal').style.display = 'flex';
+}
+
+function closeApproveModal() {
+  document.getElementById('approve-modal').style.display = 'none';
+}
+
+async function submitApproval() {
+  const reqId     = document.getElementById('approve-req-id').value;
+  const name      = document.getElementById('approve-name').value.trim();
+  const server_id = document.getElementById('approve-server').value;
+  const package_id = document.getElementById('approve-package').value;
+  if (!name)       { toast('Instanzname erforderlich', 'error'); return; }
+  if (!package_id) { toast('Paket auswählen', 'error'); return; }
+
+  try {
+    const res = await api('PUT', `/api/instance-requests/${reqId}/approve`, { server_id, name, package_id });
+    toast(`✅ Instanz "${name}" erstellt & zugewiesen (Port ${res.port})`, 'success');
+    closeApproveModal();
+    loadRequests();
+  } catch(e) { toast('Fehler: ' + e.message, 'error'); }
+}
+
+async function rejectRequest(id) {
+  if (!confirm('Anfrage wirklich ablehnen?')) return;
+  try {
+    await api('PUT', `/api/instance-requests/${id}/reject`);
+    toast('Anfrage abgelehnt', 'success');
+    loadRequests();
+  } catch(e) { toast('Fehler: ' + e.message, 'error'); }
+}
+
+// Customer: request from catalog page directly
+function requestFromCatalog(id) {
+  selectedRequestCatalogId = id;
+  document.getElementById('req-note').value = '';
+  document.getElementById('req-catalog-modal').style.display = 'flex';
+  const entry = catalog.find(c => c.id === id);
+  if (entry) {
+    document.getElementById('req-submit-btn').disabled = false;
+    document.getElementById('req-catalog-modal').querySelector('.modal-header span').textContent =
+      `Anfragen: ${entry.name}`;
+  }
+}
+
+async function submitRequest() {
+  const id = selectedRequestCatalogId;
+  if (!id) return;
+  const entry = catalog.find(c => c.id === id);
+  if (!entry) return;
+  const note = document.getElementById('req-note').value.trim();
+  try {
+    await api('POST', '/api/instance-requests', {
+      catalog_id: entry.id, catalog_name: entry.name, catalog_image: entry.image, note,
+    });
+    toast(`Anfrage für "${entry.name}" wurde gesendet`, 'success');
+    document.getElementById('req-catalog-modal').style.display = 'none';
+    selectedRequestCatalogId = null;
+    loadRequests();
+  } catch(e) { toast('Fehler: ' + e.message, 'error'); }
+}
+
+function openRequestCatalog() {
+  selectedRequestCatalogId = null;
+  document.getElementById('req-submit-btn').disabled = true;
+  document.getElementById('req-note').value = '';
+  document.getElementById('req-catalog-modal').style.display = 'flex';
+
+  const filterEl = document.getElementById('req-cat-filter');
+  const gridEl   = document.getElementById('req-catalog-grid');
+  let activeFilter = 'Alle';
+
+  const render = () => {
+    const cats = ['Alle', ...new Set(catalog.map(c => c.category))].sort((a,b) => a==='Alle'?-1:b==='Alle'?1:a.localeCompare(b));
+    filterEl.innerHTML = cats.map(c =>
+      `<button class="cat-filter-btn${c===activeFilter?' active':''}" onclick="(function(){document.getElementById('req-active-cat').value='${c}';renderReqCatalog()})()">` + c + '</button>'
+    ).join('') + `<input type="hidden" id="req-active-cat" value="Alle">`;
+    renderReqCatalog();
+  };
+
+  window.renderReqCatalog = () => {
+    const f = document.getElementById('req-active-cat')?.value || 'Alle';
+    const filtered = f === 'Alle' ? catalog : catalog.filter(c => c.category === f);
+    gridEl.innerHTML = filtered.map(c => `
+      <div class="catalog-card" style="cursor:pointer;border:2px solid ${selectedRequestCatalogId===c.id?'var(--accent)':'transparent'}"
+           onclick="selectReqCatalog('${c.id}')">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+          ${catalogIconHtml(c.name)}
+          <div>
+            <div style="font-weight:700;color:#fff;font-size:13px">${esc(c.name)}</div>
+            <div style="font-size:10px;color:var(--text-muted)">${esc(c.category)}</div>
+          </div>
+        </div>
+        <div style="font-size:11px;color:var(--text-dim)">${esc(c.description||'')}</div>
+      </div>`).join('');
+  };
+
+  window.selectReqCatalog = (id) => {
+    selectedRequestCatalogId = id;
+    document.getElementById('req-submit-btn').disabled = false;
+    renderReqCatalog();
+  };
+
+  if (catalog.length) render();
+  else fetchCatalog().then(() => render());
+}
 </script>
 </body>
 </html>

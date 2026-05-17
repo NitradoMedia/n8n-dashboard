@@ -178,6 +178,18 @@ async function initPG(retries = 15) {
           instance_id TEXT NOT NULL,
           PRIMARY KEY (package_id, instance_id)
         );
+        CREATE TABLE IF NOT EXISTS instance_requests (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+          catalog_id TEXT NOT NULL,
+          catalog_name TEXT NOT NULL,
+          catalog_image TEXT NOT NULL,
+          status VARCHAR(20) NOT NULL DEFAULT 'pending',
+          note TEXT DEFAULT '',
+          created_at TIMESTAMP DEFAULT NOW(),
+          resolved_at TIMESTAMP,
+          resolved_by UUID REFERENCES users(id)
+        );
       `);
       const { rowCount } = await pgPool.query("SELECT id FROM users WHERE role='admin' LIMIT 1");
       if (rowCount === 0) {
@@ -322,8 +334,15 @@ app.put('/api/users/:id/packages', requireAdmin, async (req, res) => {
 });
 
 // ─── Packages CRUD (Admin) ────────────────────────────────────
-app.get('/api/packages', requireAdmin, async (req, res) => {
-  const { rows } = await pgPool.query('SELECT * FROM packages ORDER BY name');
+app.get('/api/packages', requireAuth, async (req, res) => {
+  if (req.user.role === 'admin') {
+    const { rows } = await pgPool.query('SELECT * FROM packages ORDER BY name');
+    return res.json(rows);
+  }
+  const { rows } = await pgPool.query(
+    'SELECT p.* FROM packages p JOIN user_packages up ON up.package_id=p.id WHERE up.user_id=$1 ORDER BY p.name',
+    [req.user.id]
+  );
   res.json(rows);
 });
 
@@ -952,6 +971,105 @@ app.get('/api/stats', async (req, res) => {
   }));
 
   res.json(results);
+});
+
+// ─── Instance Requests ───────────────────────────────────────
+app.get('/api/instance-requests', requireAuth, async (req, res) => {
+  try {
+    if (req.user.role === 'admin') {
+      const { rows } = await pgPool.query(
+        `SELECT ir.*, u.username FROM instance_requests ir
+         JOIN users u ON u.id=ir.user_id ORDER BY ir.created_at DESC`
+      );
+      res.json(rows);
+    } else {
+      const { rows } = await pgPool.query(
+        'SELECT * FROM instance_requests WHERE user_id=$1 ORDER BY created_at DESC',
+        [req.user.id]
+      );
+      res.json(rows);
+    }
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/instance-requests', requireAuth, async (req, res) => {
+  const { catalog_id, catalog_name, catalog_image, note='' } = req.body;
+  if (!catalog_id) return res.status(400).json({ error: 'catalog_id erforderlich' });
+  try {
+    const { rows } = await pgPool.query(
+      'INSERT INTO instance_requests (user_id,catalog_id,catalog_name,catalog_image,note) VALUES ($1,$2,$3,$4,$5) RETURNING *',
+      [req.user.id, catalog_id, catalog_name, catalog_image, note]
+    );
+    res.json(rows[0]);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/users/:id/packages', requireAdmin, async (req, res) => {
+  const { rows } = await pgPool.query(
+    'SELECT p.* FROM packages p JOIN user_packages up ON up.package_id=p.id WHERE up.user_id=$1 ORDER BY p.name',
+    [req.params.id]
+  );
+  res.json(rows);
+});
+
+app.put('/api/instance-requests/:id/approve', requireAdmin, async (req, res) => {
+  const { server_id, name, package_id } = req.body;
+  if (!server_id || !name || !package_id) return res.status(400).json({ error: 'server_id, name, package_id erforderlich' });
+  const { rows: reqRows } = await pgPool.query('SELECT * FROM instance_requests WHERE id=$1', [req.params.id]);
+  if (!reqRows.length) return res.status(404).json({ error: 'Anfrage nicht gefunden' });
+  const request = reqRows[0];
+  const srv = db.prepare('SELECT * FROM servers WHERE id=?').get(server_id);
+  if (!srv) return res.status(404).json({ error: 'Server nicht gefunden' });
+
+  const catalogEntry = db.prepare('SELECT * FROM catalog WHERE id=?').get(request.catalog_id);
+  const ports   = catalogEntry ? JSON.parse(catalogEntry.ports   || '[]') : [];
+  const env     = catalogEntry ? JSON.parse(catalogEntry.env     || '[]') : [];
+  const volumes = catalogEntry ? JSON.parse(catalogEntry.volumes || '[]') : [];
+
+  const dbPorts = db.prepare('SELECT n8n_port FROM instances').all().map(r => r.n8n_port);
+  let livePortsOutput = '';
+  try { livePortsOutput = (await sshExec(srv, `docker ps --format "{{.Ports}}" 2>/dev/null`)).output; } catch(_) {}
+  const livePorts = [...livePortsOutput.matchAll(/(\d+)->/g)].map(m => parseInt(m[1]));
+  const used = new Set([...dbPorts, ...livePorts]);
+  const base = ports[0]?.host || 8080;
+  let assignedPort = base;
+  while (used.has(assignedPort)) assignedPort++;
+
+  const portArgs = ports.map((p, i) => `-p ${i===0 ? assignedPort : p.host}:${p.container}`);
+  const envArgs  = env.filter(e => e.key).map(e => `-e ${e.key}=${e.val ?? ''}`);
+  const volArgs  = volumes.filter(v => v.host).map(v => `-v ${v.host}:${v.container}`);
+  const containerName = `fleet_${name.toLowerCase().replace(/[^a-z0-9]/g,'_')}_${Date.now()}`;
+  const instanceId = uuidv4();
+  const cmd = ['docker run -d', `--name ${containerName}`, '--restart unless-stopped',
+    ...portArgs, ...envArgs, ...volArgs, request.catalog_image].join(' ');
+
+  try {
+    await sshExec(srv, cmd);
+    const webhookUrl = ports[0] ? `http://${srv.host}:${assignedPort}` : null;
+    db.prepare("INSERT INTO instances VALUES (?,?,?,?,?,?,?,strftime('%s','now'))")
+      .run(instanceId, srv.id, name, containerName, assignedPort, 'running', webhookUrl);
+    await pgPool.query(
+      'INSERT INTO package_instances (package_id,instance_id) VALUES ($1,$2) ON CONFLICT DO NOTHING',
+      [package_id, instanceId]
+    );
+    await pgPool.query(
+      'UPDATE instance_requests SET status=$1,resolved_at=NOW(),resolved_by=$2 WHERE id=$3',
+      ['approved', req.user.id, req.params.id]
+    );
+    res.json({ ok: true, instanceId, port: assignedPort, webhookUrl });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.put('/api/instance-requests/:id/reject', requireAdmin, async (req, res) => {
+  try {
+    await pgPool.query(
+      'UPDATE instance_requests SET status=$1,resolved_at=NOW(),resolved_by=$2 WHERE id=$3',
+      ['rejected', req.user.id, req.params.id]
+    );
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 // ─── Uptime Kuma Integration (Socket.io) ─────────────────────
