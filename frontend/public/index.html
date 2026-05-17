@@ -1000,7 +1000,7 @@
 
     <!-- Instances -->
     <div class="page" id="page-instances">
-      <div id="srv-stats-bar" class="srv-stats-bar">
+      <div id="srv-stats-bar" class="srv-stats-bar admin-only">
         <div class="srv-stats-loading"><i class="ti ti-loader-2" style="animation:spin 1s linear infinite"></i> Server-Auslastung wird geladen…</div>
       </div>
       <div class="inst-toolbar">
@@ -1103,7 +1103,7 @@
     <!-- Settings -->
     <div class="page" id="page-settings">
       <div class="section-title" style="margin-bottom:20px">Einstellungen</div>
-      <div class="grid-2">
+      <div class="grid-2 admin-only">
         <div class="card">
           <div class="card-header"><div class="card-title">Standard-Konfiguration</div></div>
           <div class="card-body">
@@ -1218,7 +1218,7 @@
       </div>
 
       <!-- Backup & Restore -->
-      <div class="card" style="margin-top:20px">
+      <div class="card admin-only" style="margin-top:20px">
         <div class="card-header"><div class="card-title">Backup &amp; Restore</div></div>
         <div class="card-body">
           <p style="font-size:12px;color:var(--text-dim);margin-bottom:16px">
@@ -1723,6 +1723,11 @@ function applyRole() {
   const isAdmin = currentUser?.role === 'admin';
   document.querySelectorAll('.admin-only').forEach(el => el.style.display = isAdmin ? '' : 'none');
   document.querySelectorAll('.customer-only').forEach(el => el.style.display = isAdmin ? 'none' : '');
+  // Explicit IDs that must be hidden for non-admins regardless of DOM timing
+  if (!isAdmin) {
+    const bar = document.getElementById('srv-stats-bar');
+    if (bar) bar.style.display = 'none';
+  }
   const userEl = document.getElementById('topbar-user');
   if (userEl) userEl.textContent = `${currentUser?.username || ''} · ${isAdmin ? 'Admin' : 'Kunde'}`;
   renderSidebar();
@@ -1985,12 +1990,14 @@ async function fetchCatalog()   { try { catalog   = await api('GET','/api/catalo
 
 // ── Server Resource Stats ─────────────────────────────────────
 async function fetchServerStats() {
+  if (currentUser?.role !== 'admin') return;        // guard: never run for customers
   const bar = document.getElementById('srv-stats-bar');
   if (!bar) return;
   bar.innerHTML = `<div class="srv-stats-loading"><i class="ti ti-loader-2" style="animation:spin 1s linear infinite"></i> Server-Auslastung wird geladen…</div>`;
   try {
     const stats = await api('GET', '/api/servers/stats');
-    renderServerStats(Array.isArray(stats) ? stats : []);
+    if (!Array.isArray(stats)) { bar.innerHTML = ''; return; } // 403 / error → clear silently
+    renderServerStats(stats);
   } catch { bar.innerHTML = `<div class="srv-stats-loading" style="color:var(--red)"><i class="ti ti-wifi-off"></i> Server-Stats nicht verfügbar</div>`; }
 }
 
@@ -2909,7 +2916,7 @@ function showPage(name) {
   if (name === 'settings') { ukLoadSettings(); renderSidebarEditor(); }
   if (name === 'logs') loadLogs();
   if (name === 'dashboard') { fetchUkStatuses(); renderNotes(); }
-  if (name === 'instances') { fetchUkStatuses(); fetchServerStats(); }
+  if (name === 'instances') { fetchUkStatuses(); if (currentUser?.role === 'admin') fetchServerStats(); }
   // close sidebar on mobile after navigation
   if (window.innerWidth <= 768) { closeSidebar(); fabNavFlash(); updateActFab(name); }
 }
@@ -2937,7 +2944,7 @@ const SIDEBAR_PAGE_DEFS = [
   { page:'monitor',   icon:'ti-activity',         label:'Monitor'                 },
   { page:'katalog',   icon:'ti-packages',         label:'Katalog',    admin:true  },
   { page:'vorlagen',  icon:'ti-template',         label:'Vorlagen',   admin:true  },
-  { page:'settings',  icon:'ti-settings',         label:'Einstellungen',admin:true},
+  { page:'settings',  icon:'ti-settings',         label:'Einstellungen'           },
   { page:'users',     icon:'ti-users',            label:'Benutzer',   admin:true  },
   { page:'packages',  icon:'ti-box',              label:'Pakete',     admin:true  },
   { page:'requests',  icon:'ti-bell',             label:'Anfragen'                },
@@ -3161,7 +3168,7 @@ const FAB_NAV_PAGES = [
   { page:'monitor',   icon:'ti-activity',         label:'Monitor'                 },
   { page:'katalog',   icon:'ti-packages',         label:'Katalog',    admin:true  },
   { page:'vorlagen',  icon:'ti-template',         label:'Vorlagen',   admin:true  },
-  { page:'settings',  icon:'ti-settings',         label:'Einstellungen',admin:true},
+  { page:'settings',  icon:'ti-settings',         label:'Einstellungen'           },
   { page:'users',     icon:'ti-users',            label:'Benutzer',   admin:true  },
   { page:'packages',  icon:'ti-box',              label:'Pakete',     admin:true  },
   { page:'requests',  icon:'ti-bell',             label:'Anfragen'                },

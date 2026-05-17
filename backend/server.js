@@ -685,7 +685,7 @@ app.delete('/api/servers/:id', (req, res) => {
 });
 
 // ─── SERVER STATS ─────────────────────────────────────────────
-app.get('/api/servers/stats', async (req, res) => {
+app.get('/api/servers/stats', requireAdmin, async (req, res) => {
   const servers = db.prepare('SELECT * FROM servers').all();
 
   // Three separate awk one-liners joined with ; — no bash-c wrapper, no quoting issues
@@ -1152,6 +1152,19 @@ app.post('/api/instances/:id/status', async (req, res) => {
 
 // ─── STATS (alle Container auf allen Servern) ────────────────
 app.get('/api/stats', async (req, res) => {
+  const isAdmin = req.user.role === 'admin';
+
+  // For customers: fetch only instance IDs they can access
+  let allowedInstanceIds = null;
+  if (!isAdmin) {
+    const { rows } = await pgPool.query(
+      `SELECT pi.instance_id FROM package_instances pi
+       JOIN user_packages up ON up.package_id = pi.package_id
+       WHERE up.user_id = $1`, [req.user.id]);
+    allowedInstanceIds = new Set(rows.map(r => r.instance_id));
+    if (allowedInstanceIds.size === 0) return res.json([]);
+  }
+
   const servers = db.prepare('SELECT * FROM servers').all();
   if (!servers.length) return res.json([]);
 
@@ -1163,7 +1176,16 @@ app.get('/api/stats', async (req, res) => {
       const lines = psRes.output.trim().split('\n').filter(Boolean);
       if (!lines.length) return;
 
-      const names = lines.map(l => l.split('|')[0]).join(' ');
+      // For customers: filter lines to only containers belonging to allowed instances
+      const filteredLines = lines.filter(line => {
+        if (isAdmin) return true;
+        const containerName = line.split('|')[0];
+        const inst = db.prepare('SELECT id FROM instances WHERE container_name=? AND server_id=?').get(containerName, srv.id);
+        return inst && allowedInstanceIds.has(inst.id);
+      });
+      if (!filteredLines.length) return;
+
+      const names = filteredLines.map(l => l.split('|')[0]).join(' ');
       const [statsRes, inspectRes] = await Promise.all([
         sshExec(server, `docker stats --no-stream --format "{{.Name}}|{{.CPUPerc}}|{{.MemUsage}}|{{.MemPerc}}" ${names} 2>/dev/null`),
         sshExec(server, `docker inspect --format "{{.Name}}|{{.State.StartedAt}}" ${names} 2>/dev/null`)
@@ -1180,7 +1202,7 @@ app.get('/api/stats', async (req, res) => {
         startedMap[n.replace(/^\//, '')] = s || null;
       }
 
-      for (const line of lines) {
+      for (const line of filteredLines) {
         const [containerName, image, ports, runningFor] = line.split('|');
         const s = statsMap[containerName] || { cpu: 'N/A', mem: 'N/A', memPct: '0%' };
         const managed = db.prepare('SELECT id,name,webhook_url,n8n_port FROM instances WHERE container_name=?').get(containerName);
@@ -1196,7 +1218,9 @@ app.get('/api/stats', async (req, res) => {
         });
       }
     } catch (e) {
-      results.push({ container_name: '—', image: '—', server_id: srv.id, server_name: srv.name, server_host: srv.host, cpu: 'SSH Err', mem: '—', memPct: '0%', startedAt: null, managed: false, error: e.message });
+      if (isAdmin) {
+        results.push({ container_name: '—', image: '—', server_id: srv.id, server_name: srv.name, server_host: srv.host, cpu: 'SSH Err', mem: '—', memPct: '0%', startedAt: null, managed: false, error: e.message });
+      }
     }
   }));
 
