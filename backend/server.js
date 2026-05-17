@@ -57,7 +57,13 @@ db.exec(`
   );
 `);
 
-/* Prevent duplicate auto-sync entries: same container on same server = same row */
+/* Remove any duplicate (container_name, server_id) rows that exist before adding the index */
+db.exec(`
+  DELETE FROM instances WHERE rowid NOT IN (
+    SELECT MIN(rowid) FROM instances GROUP BY container_name, server_id
+  );
+`);
+/* Now safe to create the UNIQUE index — prevents race-condition duplicates going forward */
 db.exec(`
   CREATE UNIQUE INDEX IF NOT EXISTS idx_inst_container_server
     ON instances(container_name, server_id);
