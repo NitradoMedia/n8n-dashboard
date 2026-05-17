@@ -511,6 +511,68 @@
           </div>
         </div>
       </div>
+
+      <!-- Uptime Kuma Integration -->
+      <div class="card admin-only" style="margin-top:20px">
+        <div class="card-header">
+          <div class="card-title">
+            <img src="https://cdn.simpleicons.org/uptimekuma/ffffff" width="18" height="18" style="vertical-align:middle;margin-right:6px;opacity:0.85" onerror="this.style.display='none'">
+            Uptime Kuma Integration
+          </div>
+        </div>
+        <div class="card-body">
+          <p style="font-size:12px;color:var(--text-dim);margin-bottom:16px">
+            Verbindet sich direkt mit deiner Uptime Kuma Instanz und legt alle n8n-Instanzen als HTTP-Monitor an.
+            Den API-Key findest du in Uptime Kuma unter <span style="color:var(--text)">Einstellungen → API Keys</span>.
+          </p>
+          <div style="display:grid;gap:10px;max-width:480px;margin-bottom:14px">
+            <div>
+              <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px">Uptime Kuma URL</label>
+              <input id="uk-url" class="input" placeholder="http://217.154.83.95:3001" style="width:100%">
+            </div>
+            <div>
+              <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px">Benutzername</label>
+              <input id="uk-user" class="input" placeholder="admin" style="width:100%">
+            </div>
+            <div>
+              <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px">Passwort</label>
+              <input id="uk-pass" class="input" type="password" placeholder="••••••••" style="width:100%">
+            </div>
+          </div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+            <button class="btn btn-primary" onclick="ukSync()" id="uk-sync-btn">🔄 Monitore synchronisieren</button>
+            <span style="font-size:11px" id="uk-export-info"></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Backup & Restore -->
+      <div class="card" style="margin-top:20px">
+        <div class="card-header"><div class="card-title">Backup &amp; Restore</div></div>
+        <div class="card-body">
+          <p style="font-size:12px;color:var(--text-dim);margin-bottom:16px">
+            Das Backup enthält alle Server (inkl. SSH-Keys &amp; Passwörter), Instanzen, Vorlagen, den Image-Katalog sowie alle Benutzer und Pakete.
+          </p>
+          <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-start">
+            <div>
+              <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:1px">Backup erstellen</div>
+              <button class="btn btn-primary" onclick="downloadBackup()" id="btn-backup">⬇ Backup herunterladen</button>
+            </div>
+            <div>
+              <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:1px">Backup einspielen</div>
+              <div style="display:flex;gap:8px;align-items:center">
+                <label class="btn btn-ghost" style="cursor:pointer;margin:0">
+                  📂 Datei wählen
+                  <input type="file" id="restore-file" accept=".json" style="display:none" onchange="previewRestore(this)">
+                </label>
+                <span id="restore-filename" style="font-size:11px;color:var(--text-dim)">Keine Datei gewählt</span>
+              </div>
+              <div id="restore-preview" style="display:none;margin-top:10px;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:10px;font-size:11px;color:var(--text-dim);line-height:1.8"></div>
+              <button class="btn btn-danger" id="btn-restore" style="display:none;margin-top:10px" onclick="doRestore()">⚠ Backup einspielen</button>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Users -->
@@ -856,6 +918,107 @@ function saveSettings() {
   settings.port = parseInt(document.getElementById('cfg-port').value) || 5678;
   localStorage.setItem('n8n-fleet-settings', JSON.stringify(settings));
   toast('Einstellungen gespeichert', 'success');
+}
+
+// ── Uptime Kuma Integration ───────────────────────────────────
+async function ukSync() {
+  const btn    = document.getElementById('uk-sync-btn');
+  const info   = document.getElementById('uk-export-info');
+  const ukUrl    = document.getElementById('uk-url').value.trim();
+  const username = document.getElementById('uk-user').value.trim();
+  const password = document.getElementById('uk-pass').value;
+  if (!ukUrl)    { toast('Bitte Uptime Kuma URL eingeben', 'error'); return; }
+  if (!username) { toast('Bitte Benutzername eingeben', 'error'); return; }
+  if (!password) { toast('Bitte Passwort eingeben', 'error'); return; }
+  btn.disabled = true; btn.textContent = '⏳ Synchronisiere...';
+  info.textContent = ''; info.style.color = '';
+  try {
+    const res  = await fetch('/api/integrations/uptime-kuma/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() },
+      body: JSON.stringify({ ukUrl, username, password }),
+    });
+    const data = await res.json();
+    if (!res.ok) { toast('Fehler: ' + (data.error || res.status), 'error'); return; }
+    info.textContent = `✓ ${data.created} erstellt, ${data.skipped} übersprungen`;
+    info.style.color = 'var(--green)';
+    if (data.errors && data.errors.length) {
+      info.textContent = data.errors[0];
+      info.style.color = 'var(--red)';
+      toast(`Fehler: ${data.errors[0]}`, 'error');
+    } else {
+      toast(`${data.created} Monitor(e) in Uptime Kuma angelegt`, 'success');
+    }
+  } catch(e) { toast('Fehler: ' + e.message, 'error'); }
+  btn.disabled = false; btn.textContent = '🔄 Monitore synchronisieren';
+}
+
+// ── Backup & Restore ─────────────────────────────────────────
+async function downloadBackup() {
+  const btn = document.getElementById('btn-backup');
+  btn.disabled = true; btn.textContent = '⏳ Wird erstellt...';
+  try {
+    const token = getToken();
+    const res = await fetch('/api/backup', { headers: { 'Authorization': 'Bearer ' + token } });
+    if (!res.ok) { toast('Backup fehlgeschlagen: ' + (await res.json()).error, 'error'); return; }
+    const blob = await res.blob();
+    const cd   = res.headers.get('Content-Disposition') || '';
+    const name = (cd.match(/filename="([^"]+)"/) || [])[1] || 'fleet-backup.json';
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url; a.download = name; a.click();
+    URL.revokeObjectURL(url);
+    toast('Backup heruntergeladen', 'success');
+  } catch(e) { toast('Fehler: ' + e.message, 'error'); }
+  finally { btn.disabled = false; btn.textContent = '⬇ Backup herunterladen'; }
+}
+
+let _restoreFile = null;
+function previewRestore(input) {
+  const file = input.files[0];
+  if (!file) return;
+  _restoreFile = file;
+  document.getElementById('restore-filename').textContent = file.name;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const data = JSON.parse(e.target.result);
+      const preview = document.getElementById('restore-preview');
+      preview.style.display = 'block';
+      preview.innerHTML = [
+        data.created_at ? `📅 Erstellt: <strong>${new Date(data.created_at).toLocaleString('de-DE')}</strong>` : '',
+        `🖥️ Server: <strong>${(data.servers||[]).length}</strong>`,
+        `📦 Instanzen: <strong>${(data.instances||[]).length}</strong>`,
+        `👤 Benutzer: <strong>${(data.users||[]).length}</strong>`,
+        `📋 Pakete: <strong>${(data.packages||[]).length}</strong>`,
+        `⊞ Katalog-Einträge: <strong>${(data.catalog||[]).length}</strong>`,
+        `◧ Vorlagen: <strong>${(data.templates||[]).length}</strong>`,
+      ].filter(Boolean).join('<br>');
+      document.getElementById('btn-restore').style.display = 'inline-flex';
+    } catch { toast('Ungültige Backup-Datei', 'error'); }
+  };
+  reader.readAsText(file);
+}
+
+async function doRestore() {
+  if (!_restoreFile) return;
+  if (!confirm('Backup einspielen? Bestehende Daten werden durch das Backup ergänzt/überschrieben.')) return;
+  const btn = document.getElementById('btn-restore');
+  btn.disabled = true; btn.textContent = '⏳ Wird eingespielt...';
+  try {
+    const formData = new FormData();
+    formData.append('backup', _restoreFile);
+    const res = await fetch('/api/restore', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + getToken() },
+      body: formData,
+    });
+    const json = await res.json();
+    if (!res.ok) { toast('Fehler: ' + json.error, 'error'); return; }
+    toast('Backup erfolgreich eingespielt – Seite wird neu geladen', 'success');
+    setTimeout(() => location.reload(), 1500);
+  } catch(e) { toast('Fehler: ' + e.message, 'error'); }
+  finally { btn.disabled = false; btn.textContent = '⚠ Backup einspielen'; }
 }
 
 // ── API ──────────────────────────────────────────────────────

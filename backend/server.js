@@ -51,6 +51,10 @@ db.exec(`
     volumes TEXT DEFAULT '[]', restart TEXT DEFAULT 'unless-stopped',
     created_at INTEGER DEFAULT (strftime('%s','now'))
   );
+  CREATE TABLE IF NOT EXISTS app_settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL DEFAULT ''
+  );
 `);
 
 // ─── Seed catalog ─────────────────────────────────────────────
@@ -219,7 +223,14 @@ async function canAccessInstance(userId, instanceId) {
 
 app.use(cors());
 app.use(bodyParser.json());
-app.use(express.static(path.join(__dirname, '../frontend/public')));
+app.use(express.static(path.join(__dirname, '../frontend/public'), {
+  etag: false,
+  lastModified: false,
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('.html')) res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+    else res.set('Cache-Control', 'public, max-age=3600');
+  },
+}));
 
 // ─── PUBLIC: Auth Routes ──────────────────────────────────────
 app.post('/api/auth/login', async (req, res) => {
@@ -345,6 +356,115 @@ app.put('/api/packages/:id/instances', requireAdmin, async (req, res) => {
   for (const iid of instanceIds)
     await pgPool.query('INSERT INTO package_instances (package_id,instance_id) VALUES ($1,$2) ON CONFLICT DO NOTHING', [req.params.id, iid]);
   res.json({ ok: true });
+});
+
+// ─── APP SETTINGS ────────────────────────────────────────────
+app.get('/api/app-settings', requireAdmin, (req, res) => {
+  const rows = db.prepare('SELECT key, value FROM app_settings').all();
+  const out = {};
+  for (const r of rows) out[r.key] = r.value;
+  res.json(out);
+});
+
+app.put('/api/app-settings', requireAdmin, (req, res) => {
+  const upsert = db.prepare('INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)');
+  const tx = db.transaction(pairs => { for (const [k, v] of Object.entries(pairs)) upsert.run(k, String(v)); });
+  tx(req.body);
+  res.json({ ok: true });
+});
+
+
+
+// ─── BACKUP / RESTORE ────────────────────────────────────────
+app.get('/api/backup', requireAdmin, async (req, res) => {
+  try {
+    const servers   = db.prepare('SELECT * FROM servers').all();
+    const instances = db.prepare('SELECT * FROM instances').all();
+    const templates = db.prepare('SELECT * FROM templates').all();
+    const catalog   = db.prepare('SELECT * FROM catalog').all();
+
+    const { rows: users }            = await pgPool.query('SELECT id,username,email,password_hash,role,active,created_at FROM users');
+    const { rows: packages }         = await pgPool.query('SELECT * FROM packages');
+    const { rows: user_packages }    = await pgPool.query('SELECT * FROM user_packages');
+    const { rows: package_instances }= await pgPool.query('SELECT * FROM package_instances');
+
+    const backup = {
+      version: 1,
+      created_at: new Date().toISOString(),
+      servers, instances, templates, catalog,
+      users, packages, user_packages, package_instances,
+    };
+
+    const filename = `fleet-backup-${new Date().toISOString().slice(0,10)}.json`;
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Type', 'application/json');
+    res.json(backup);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/restore', requireAdmin, upload.single('backup'), async (req, res) => {
+  try {
+    const raw = req.file ? req.file.buffer.toString('utf8') : JSON.stringify(req.body);
+    const data = JSON.parse(raw);
+    if (!data.version) return res.status(400).json({ error: 'Ungültiges Backup-Format' });
+
+    // ── SQLite restore (REPLACE) ──
+    const dbRestore = db.transaction(() => {
+      if (data.servers?.length) {
+        const s = db.prepare('INSERT OR REPLACE INTO servers (id,name,host,port,username,password,ssh_key,created_at) VALUES (?,?,?,?,?,?,?,?)');
+        for (const r of data.servers) s.run(r.id,r.name,r.host,r.port,r.username,r.password||null,r.ssh_key||null,r.created_at);
+      }
+      if (data.instances?.length) {
+        const s = db.prepare('INSERT OR REPLACE INTO instances (id,server_id,name,container_name,n8n_port,status,webhook_url,created_at) VALUES (?,?,?,?,?,?,?,?)');
+        for (const r of data.instances) s.run(r.id,r.server_id,r.name,r.container_name,r.n8n_port,r.status||'unknown',r.webhook_url||null,r.created_at);
+      }
+      if (data.templates?.length) {
+        const s = db.prepare('INSERT OR REPLACE INTO templates (id,name,type,config,created_at) VALUES (?,?,?,?,?)');
+        for (const r of data.templates) s.run(r.id,r.name,r.type,r.config,r.created_at);
+      }
+      if (data.catalog?.length) {
+        const s = db.prepare('INSERT OR REPLACE INTO catalog (id,name,image,description,category,ports,env,volumes,restart,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)');
+        for (const r of data.catalog) s.run(r.id,r.name,r.image,r.description||'',r.category||'Sonstige',r.ports||'[]',r.env||'[]',r.volumes||'[]',r.restart||'unless-stopped',r.created_at);
+      }
+    });
+    dbRestore();
+
+    // ── PostgreSQL restore (upsert) ──
+    if (data.users?.length) {
+      for (const u of data.users) {
+        await pgPool.query(`
+          INSERT INTO users (id,username,email,password_hash,role,active,created_at)
+          VALUES ($1,$2,$3,$4,$5,$6,$7)
+          ON CONFLICT (id) DO UPDATE SET username=EXCLUDED.username, email=EXCLUDED.email,
+            password_hash=EXCLUDED.password_hash, role=EXCLUDED.role, active=EXCLUDED.active`,
+          [u.id, u.username, u.email||null, u.password_hash, u.role||'customer', u.active!==false, u.created_at]);
+      }
+    }
+    if (data.packages?.length) {
+      for (const p of data.packages) {
+        await pgPool.query(`
+          INSERT INTO packages (id,name,description,created_at) VALUES ($1,$2,$3,$4)
+          ON CONFLICT (id) DO UPDATE SET name=EXCLUDED.name, description=EXCLUDED.description`,
+          [p.id, p.name, p.description||'', p.created_at]);
+      }
+    }
+    if (data.user_packages?.length) {
+      for (const up of data.user_packages) {
+        await pgPool.query(
+          'INSERT INTO user_packages (user_id,package_id) VALUES ($1,$2) ON CONFLICT DO NOTHING',
+          [up.user_id, up.package_id]);
+      }
+    }
+    if (data.package_instances?.length) {
+      for (const pi of data.package_instances) {
+        await pgPool.query(
+          'INSERT INTO package_instances (package_id,instance_id) VALUES ($1,$2) ON CONFLICT DO NOTHING',
+          [pi.package_id, pi.instance_id]);
+      }
+    }
+
+    res.json({ ok: true, message: 'Backup erfolgreich eingespielt' });
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 // ─── SSH Helper ──────────────────────────────────────────────
@@ -832,6 +952,98 @@ app.get('/api/stats', async (req, res) => {
   }));
 
   res.json(results);
+});
+
+// ─── Uptime Kuma Integration (Socket.io) ─────────────────────
+const { io: ioClient } = require('socket.io-client');
+
+app.post('/api/integrations/uptime-kuma/sync', requireAuth, (req, res) => {
+  const { ukUrl, username, password } = req.body;
+  if (!ukUrl || !username || !password) return res.status(400).json({ error: 'ukUrl, username und password erforderlich' });
+
+  const base = ukUrl.replace(/\/$/, '');
+  const instances = db.prepare('SELECT i.*, s.host as server_host FROM instances i LEFT JOIN servers s ON s.id = i.server_id').all();
+
+  const socket = ioClient(base, {
+    transports: ['websocket', 'polling'],
+    reconnection: false,
+    timeout: 10000,
+  });
+
+  let settled = false;
+  const finish = (statusCode, data) => {
+    if (settled) return;
+    settled = true;
+    try { socket.disconnect(); } catch (_) {}
+    res.status(statusCode).json(data);
+  };
+
+  const globalTimeout = setTimeout(() => finish(502, { error: 'Timeout — Uptime Kuma nicht erreichbar (20s)' }), 20000);
+
+  socket.on('connect_error', (err) => {
+    clearTimeout(globalTimeout);
+    finish(502, { error: `Verbindungsfehler: ${err.message}` });
+  });
+
+  socket.on('connect', () => {
+    socket.emit('login', { username, password }, (loginRes) => {
+      if (!loginRes || !loginRes.ok) {
+        clearTimeout(globalTimeout);
+        return finish(401, { error: 'Auth fehlgeschlagen: ' + (loginRes?.msg || 'Falscher Benutzername oder Passwort') });
+      }
+
+      // Uptime Kuma sends monitorList after login; capture it to skip duplicates
+      let existingNames = new Set();
+      let listReceived = false;
+
+      const proceed = () => {
+        const todo = instances.filter(inst => {
+          const url = (inst.webhook_url || '').startsWith('http')
+            ? inst.webhook_url
+            : (inst.server_host ? `http://${inst.server_host}:${inst.n8n_port}` : null);
+          return !!url && !existingNames.has(inst.name);
+        });
+        const skipped = instances.length - todo.length;
+
+        if (todo.length === 0) {
+          clearTimeout(globalTimeout);
+          return finish(200, { created: 0, skipped, total: instances.length, errors: [] });
+        }
+
+        let created = 0, pending = todo.length;
+        const errors = [];
+
+        for (const inst of todo) {
+          const url = (inst.webhook_url || '').startsWith('http')
+            ? inst.webhook_url
+            : `http://${inst.server_host}:${inst.n8n_port}`;
+
+          socket.emit('add', {
+            type: 'http', name: inst.name, url,
+            method: 'GET', interval: 60, retryInterval: 60, maxretries: 3,
+            timeout: 48, maxredirects: 10, ignoreTls: false, upsideDown: false,
+            accepted_statuscodes: ['200-299'],
+          }, (addRes) => {
+            if (addRes && addRes.ok) { created++; }
+            else { errors.push(`${inst.name}: ${addRes?.msg || 'Unbekannter Fehler'}`); }
+            if (--pending === 0) {
+              clearTimeout(globalTimeout);
+              finish(200, { created, skipped, total: instances.length, errors });
+            }
+          });
+        }
+      };
+
+      socket.once('monitorList', (list) => {
+        existingNames = new Set(Object.values(list || {}).map(m => m.name));
+        listReceived = true;
+        proceed();
+      });
+
+      // fallback: if monitorList doesn't arrive within 3s, proceed without duplicate check
+      setTimeout(() => { if (!listReceived) { listReceived = true; proceed(); } }, 3000);
+    });
+  });
 });
 
 // ─── Catch-all ───────────────────────────────────────────────
