@@ -57,6 +57,12 @@ db.exec(`
   );
 `);
 
+/* Prevent duplicate auto-sync entries: same container on same server = same row */
+db.exec(`
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_inst_container_server
+    ON instances(container_name, server_id);
+`);
+
 // ─── Seed catalog ─────────────────────────────────────────────
 const SEED_CATALOG = [
   // Automation
@@ -822,14 +828,14 @@ app.get('/api/instances', async (req, res) => {
       for (const line of lines) {
         const [cname, ports] = line.split('|');
         const container = cname.trim();
-        const existing = db.prepare('SELECT id FROM instances WHERE container_name=? AND server_id=?').get(container, srv.id);
-        if (!existing) {
-          const portMatch = ports && ports.match(/(\d+)->/);
-          const hostPort  = portMatch ? parseInt(portMatch[1]) : 0;
-          const webhookUrl = hostPort ? `http://${srv.host}:${hostPort}` : null;
-          db.prepare("INSERT INTO instances VALUES (?,?,?,?,?,?,?,strftime('%s','now'))")
-            .run(uuidv4(), srv.id, container, container, hostPort, 'running', webhookUrl);
-        }
+        const portMatch  = ports && ports.match(/(\d+)->/);
+        const hostPort   = portMatch ? parseInt(portMatch[1]) : 0;
+        const webhookUrl = hostPort ? `http://${srv.host}:${hostPort}` : null;
+        /* INSERT OR IGNORE: UNIQUE(container_name, server_id) prevents race-condition duplicates */
+        db.prepare(`INSERT OR IGNORE INTO instances
+          (id, server_id, name, container_name, n8n_port, status, webhook_url)
+          VALUES (?,?,?,?,?,?,?)`)
+          .run(uuidv4(), srv.id, container, container, hostPort, 'running', webhookUrl);
       }
       // Mark containers no longer running as stopped
       const runningNames = new Set(lines.map(l => l.split('|')[0].trim()));
@@ -960,13 +966,11 @@ async function registerComposeInstances(srv, projectName, deployName) {
     const hostPort  = portMatch ? parseInt(portMatch[1]) : 0;
     const webhookUrl = hostPort ? `http://${srv.host}:${hostPort}` : null;
     const label = `${deployName} (${container})`;
-    const existing = db.prepare('SELECT id FROM instances WHERE container_name=? AND server_id=?').get(container, srv.id);
-    if (!existing) {
-      db.prepare("INSERT INTO instances VALUES (?,?,?,?,?,?,?,strftime('%s','now'))")
-        .run(uuidv4(), srv.id, label, container, hostPort, 'running', webhookUrl);
-    } else {
-      db.prepare("UPDATE instances SET status='running' WHERE container_name=? AND server_id=?").run(container, srv.id);
-    }
+    db.prepare(`INSERT OR IGNORE INTO instances
+      (id, server_id, name, container_name, n8n_port, status, webhook_url)
+      VALUES (?,?,?,?,?,?,?)`)
+      .run(uuidv4(), srv.id, label, container, hostPort, 'running', webhookUrl);
+    db.prepare("UPDATE instances SET status='running' WHERE container_name=? AND server_id=?").run(container, srv.id);
   }
 }
 
