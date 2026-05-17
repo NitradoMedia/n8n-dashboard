@@ -414,14 +414,18 @@
         <div class="empty-state"><div class="empty-icon">⬡</div><div class="empty-text">Keine Instanzen vorhanden</div><div class="empty-sub">Klicke auf „Deploy" um zu starten</div></div>
       </div>
 
-      <!-- Uptime Kuma Quick-Sync -->
-      <div class="card admin-only" style="margin-top:20px;padding:14px 16px;display:flex;align-items:center;gap:14px;flex-wrap:wrap">
-        <img src="https://cdn.simpleicons.org/uptimekuma/ffffff" width="20" height="20" style="opacity:0.8;flex-shrink:0" onerror="this.style.display='none'">
-        <div style="flex:1;min-width:0">
+      <!-- Uptime Kuma Status Bar -->
+      <div class="card admin-only" style="margin-top:20px;padding:14px 16px">
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+          <img src="https://cdn.simpleicons.org/uptimekuma/ffffff" width="18" height="18" style="opacity:0.8;flex-shrink:0" onerror="this.style.display='none'">
           <div style="font-size:12px;font-weight:600;color:var(--text)">Uptime Kuma</div>
-          <div style="font-size:11px;color:var(--text-muted)" id="uk-dash-info">Alle Instanzen als HTTP-Monitor synchronisieren</div>
+          <div id="uk-status-summary" style="display:flex;gap:8px;flex-wrap:wrap;flex:1;font-size:11px;color:var(--text-muted)">
+            <span>—</span>
+          </div>
+          <button class="btn btn-ghost btn-sm" onclick="fetchUkStatuses()" title="Status aktualisieren">⟳</button>
+          <button class="btn btn-primary btn-sm" id="uk-dash-btn" onclick="ukSyncFromDashboard()">🔄 Sync</button>
         </div>
-        <button class="btn btn-primary btn-sm" id="uk-dash-btn" onclick="ukSyncFromDashboard()">🔄 Sync</button>
+        <div style="font-size:10px;color:var(--text-muted);margin-top:4px" id="uk-dash-info"></div>
       </div>
     </div>
 
@@ -625,6 +629,19 @@
       </div>
     </div>
 
+  </div>
+</div>
+
+<!-- Uptime Kuma Detail Modal -->
+<div class="modal-overlay" id="uk-detail-modal" style="display:none" onclick="if(event.target===this)this.style.display='none'">
+  <div class="modal" style="max-width:520px">
+    <div class="modal-header">
+      <span id="uk-detail-title">Monitor Details</span>
+      <button class="modal-close" onclick="document.getElementById('uk-detail-modal').style.display='none'">✕</button>
+    </div>
+    <div class="modal-body" id="uk-detail-body" style="min-height:200px">
+      <div style="text-align:center;padding:40px;color:var(--text-muted)">⟳ Lade...</div>
+    </div>
   </div>
 </div>
 
@@ -896,6 +913,7 @@
 // ── State ────────────────────────────────────────────────────
 const API = '';
 let servers = [], instances = [], templates = [], catalog = [];
+let ukStatuses = {};   // { monitorName: { status, ping } }
 let currentUser = null;
 let settings = JSON.parse(localStorage.getItem('n8n-fleet-settings') || '{"tz":"Europe/Berlin","user":"admin","pass":"","port":5678}');
 let currentDeployTab = 'image';
@@ -1135,10 +1153,34 @@ async function api(method, path, body) {
   return res.json();
 }
 
+async function fetchUkStatuses() {
+  const summaryEl = document.getElementById('uk-status-summary');
+  if (summaryEl) summaryEl.innerHTML = '<span style="color:var(--text-muted)">⟳ Lade...</span>';
+  try {
+    ukStatuses = await api('GET', '/api/integrations/uptime-kuma/status');
+    renderDashboard(); renderInstancesList();
+    if (summaryEl) {
+      const vals = Object.values(ukStatuses);
+      if (!vals.length) { summaryEl.innerHTML = '<span style="color:var(--text-muted)">Keine Monitore gefunden</span>'; return; }
+      const up   = vals.filter(v => v.status === 1).length;
+      const down = vals.filter(v => v.status === 0).length;
+      const pend = vals.filter(v => v.status === 2).length;
+      const unk  = vals.filter(v => v.status === -1 || v.status > 2).length;
+      summaryEl.innerHTML = [
+        up   ? `<span style="color:#23d160">● ${up} Up</span>`       : '',
+        down ? `<span style="color:#ff4757">● ${down} Down</span>`    : '',
+        pend ? `<span style="color:#ffa502">● ${pend} Pending</span>` : '',
+        unk  ? `<span style="color:#636e72">● ${unk} Unbekannt</span>` : '',
+      ].filter(Boolean).join('');
+    }
+  } catch { ukStatuses = {}; if (summaryEl) summaryEl.innerHTML = '<span style="color:var(--text-muted)">Nicht verbunden</span>'; }
+}
+
 async function refreshAll() {
   await Promise.all([fetchServers(), fetchInstances(), fetchTemplates(), fetchCatalog()]);
   renderDashboard(); renderInstancesList(); renderServersList(); renderTemplates(); renderCatalog();
   loadRequests();
+  fetchUkStatuses();   // async, updates cards when ready
 }
 
 async function fetchServers()   { try { servers   = await api('GET','/api/servers');   } catch {} }
@@ -1444,13 +1486,27 @@ function applyPreset() {
   entry.volumes.forEach(v => addVolRow(v.host, v.container));
 }
 
+function ukBadge(name) {
+  const uk = ukStatuses[name];
+  if (!uk) return '';
+  const map = { 1: ['#23d160','Up'], 0: ['#ff4757','Down'], 2: ['#ffa502','Pending'], 3: ['#a29bfe','Maintenance'] };
+  const [color, label] = map[uk.status] || ['#636e72','Unknown'];
+  const ping = uk.ping ? ` · ${uk.ping}ms` : '';
+  return `<span onclick="openUkDetail('${name.replace(/'/g,"\\'")}');event.stopPropagation()" title="Klicken für Details" style="cursor:pointer;display:inline-flex;align-items:center;gap:4px;font-size:10px;color:${color};background:${color}18;border:1px solid ${color}44;border-radius:10px;padding:2px 7px;margin-left:6px;transition:opacity .15s" onmouseover="this.style.opacity='.75'" onmouseout="this.style.opacity='1'">
+    <span style="width:6px;height:6px;border-radius:50%;background:${color};display:inline-block"></span>${label}${ping}
+  </span>`;
+}
+
 function instanceCard(i) {
   const sc = i.status==='running' ? 'running' : (i.status==='stopped' ? 'stopped' : 'exited');
   const url = i.webhook_url || `http://${i.server_host}:${i.n8n_port}`;
   return `
   <div class="instance-card ${sc}" id="icard-${i.id}">
     <div class="instance-header">
-      <div><div class="instance-name">⬡ ${esc(i.name)}</div><div class="instance-server">▸ ${esc(i.server_name||i.server_host)}</div></div>
+      <div style="display:flex;align-items:center;flex-wrap:wrap;gap:4px">
+        <div><div class="instance-name">⬡ ${esc(i.name)}</div><div class="instance-server">▸ ${esc(i.server_name||i.server_host)}</div></div>
+        ${ukBadge(i.name)}
+      </div>
       <span class="badge ${sc}">${i.status||'unknown'}</span>
     </div>
     <div class="instance-meta">
@@ -1704,6 +1760,7 @@ function showPage(name) {
   if (name === 'packages') loadPackages();
   if (name === 'requests') loadRequests();
   if (name === 'settings') ukLoadSettings();
+  if (name === 'dashboard' || name === 'instances') fetchUkStatuses();
   // close sidebar on mobile after navigation
   if (window.innerWidth <= 768) closeSidebar();
 }
@@ -2155,6 +2212,63 @@ function esc(s) {
 document.querySelectorAll('.modal-overlay').forEach(o => {
   o.addEventListener('click', e => { if (e.target === o) o.classList.remove('open'); });
 });
+
+// ── Uptime Kuma Detail Modal ──────────────────────────────────
+async function openUkDetail(name) {
+  const modal = document.getElementById('uk-detail-modal');
+  const body  = document.getElementById('uk-detail-body');
+  const title = document.getElementById('uk-detail-title');
+  title.textContent = `⬡ ${name}`;
+  body.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted)">⟳ Lade Monitor-Daten...</div>';
+  modal.style.display = 'flex';
+
+  try {
+    const d = await api('GET', `/api/integrations/uptime-kuma/monitor/${encodeURIComponent(name)}`);
+    const statusMap = { 1:['#23d160','Up'], 0:['#ff4757','Down'], 2:['#ffa502','Pending'], 3:['#a29bfe','Maintenance'], '-1':['#636e72','Unknown'] };
+    const latest = d.monitor?.latestHeartbeat;
+    const [sc, sl] = statusMap[latest?.status ?? -1] || statusMap[-1];
+
+    // heartbeat sparkline (last 50)
+    const hbBars = (d.heartbeats || []).map(h => {
+      const [c] = statusMap[h.status] || statusMap[-1];
+      const tip = `${h.status===1?'Up':'Down'} · ${h.ping??'—'}ms\n${h.time||''}`;
+      return `<span title="${tip}" style="display:inline-block;width:8px;height:28px;border-radius:2px;background:${c};opacity:0.85;margin:0 1px;cursor:default"></span>`;
+    }).join('');
+
+    // uptime pills
+    const uptimePills = Object.entries(d.uptimes||{}).map(([period, val]) => {
+      const label = period==='24'?'24h': period==='168'?'7d': period==='720'?'30d': period+'h';
+      const col = val>=99?'#23d160': val>=95?'#ffa502':'#ff4757';
+      return `<span style="background:${col}22;border:1px solid ${col}55;color:${col};border-radius:10px;padding:3px 10px;font-size:11px;font-weight:600">${label}: ${val}%</span>`;
+    }).join('');
+
+    body.innerHTML = `
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:18px">
+        <span style="display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:700;color:${sc}">
+          <span style="width:10px;height:10px;border-radius:50%;background:${sc}"></span>${sl}
+        </span>
+        ${latest?.ping != null ? `<span style="font-size:11px;color:var(--text-muted)">Ping: <b style="color:var(--text)">${latest.ping}ms</b></span>` : ''}
+        ${d.avgPing != null ? `<span style="font-size:11px;color:var(--text-muted)">Ø Ping: <b style="color:var(--text)">${d.avgPing}ms</b></span>` : ''}
+      </div>
+
+      ${uptimePills ? `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px">${uptimePills}</div>` : ''}
+
+      ${d.monitor?.url ? `<div style="font-size:11px;color:var(--text-muted);margin-bottom:14px">🔗 <a href="${d.monitor.url}" target="_blank" style="color:var(--accent)">${d.monitor.url}</a> &nbsp;·&nbsp; Intervall: ${d.monitor.interval||60}s</div>` : ''}
+
+      ${d.heartbeats?.length ? `
+        <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Letzte ${d.heartbeats.length} Checks</div>
+        <div style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:10px 12px;display:flex;align-items:flex-end;flex-wrap:wrap;gap:0;min-height:46px">
+          ${hbBars || '<span style="color:var(--text-muted);font-size:11px">Keine Daten</span>'}
+        </div>
+        ${latest?.time ? `<div style="font-size:10px;color:var(--text-muted);margin-top:6px;text-align:right">Letzter Check: ${new Date(latest.time).toLocaleString('de-DE')}</div>` : ''}
+      ` : '<div style="color:var(--text-muted);font-size:12px">Keine Heartbeat-Daten verfügbar</div>'}
+
+      ${latest?.msg ? `<div style="margin-top:12px;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:8px 10px;font-size:11px;color:var(--text-dim)">💬 ${esc(latest.msg)}</div>` : ''}
+    `;
+  } catch(e) {
+    body.innerHTML = `<div style="color:var(--red);padding:20px">Fehler: ${esc(e.message)}</div>`;
+  }
+}
 
 // ── Instance Requests ─────────────────────────────────────────
 let requests = [];

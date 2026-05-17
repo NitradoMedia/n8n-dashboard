@@ -1121,6 +1121,130 @@ app.put('/api/instance-requests/:id/reject', requireAdmin, async (req, res) => {
 // ─── Uptime Kuma Integration (Socket.io) ─────────────────────
 const { io: ioClient } = require('socket.io-client');
 
+// GET /api/integrations/uptime-kuma/status  — returns { monitorName: { status, ping, active } }
+app.get('/api/integrations/uptime-kuma/status', requireAuth, (req, res) => {
+  const rows = db.prepare('SELECT key, value FROM app_settings').all();
+  const cfg  = Object.fromEntries(rows.map(r => [r.key, r.value]));
+  const { uk_url: ukUrl, uk_user: username, uk_pass: password } = cfg;
+  if (!ukUrl || !username || !password) return res.json({});
+
+  const base   = ukUrl.replace(/\/$/, '');
+  const socket = ioClient(base, { transports: ['websocket', 'polling'], reconnection: false, timeout: 10000 });
+
+  let settled = false;
+  const finish = (data) => {
+    if (settled) return; settled = true;
+    try { socket.disconnect(); } catch(_) {}
+    res.json(data);
+  };
+  const globalTimeout = setTimeout(() => finish({}), 15000);
+
+  socket.on('connect_error', () => { clearTimeout(globalTimeout); finish({}); });
+  socket.on('connect', () => {
+    socket.emit('login', { username, password }, (loginRes) => {
+      if (!loginRes?.ok) { clearTimeout(globalTimeout); return finish({}); }
+
+      const byId   = {};   // id → name
+      const result = {};   // name → { status, ping, active }
+
+      const fallback = setTimeout(() => { clearTimeout(globalTimeout); finish(result); }, 5000);
+
+      socket.once('monitorList', (list) => {
+        for (const [id, mon] of Object.entries(list || {})) {
+          byId[id] = mon.name;
+          result[mon.name] = {
+            status: mon.heartbeat?.status ?? -1,
+            ping:   mon.heartbeat?.ping   ?? null,
+            active: !!mon.active,
+          };
+        }
+        // give heartbeatList events ~2s to override with fresher data
+        clearTimeout(fallback);
+        setTimeout(() => { clearTimeout(globalTimeout); finish(result); }, 2000);
+      });
+
+      // heartbeatList per monitor — updates status with the actual latest ping
+      socket.on('heartbeatList', (monitorId, hbList) => {
+        const name = byId[monitorId];
+        if (!name) return;
+        const list = Array.isArray(hbList) ? hbList : [];
+        const latest = list[list.length - 1];
+        if (!latest) return;
+        result[name] = { ...result[name], status: latest.status, ping: latest.ping ?? null };
+      });
+    });
+  });
+});
+
+// GET /api/integrations/uptime-kuma/monitor/:name  — detailed info for one monitor
+app.get('/api/integrations/uptime-kuma/monitor/:name', requireAuth, (req, res) => {
+  const rows = db.prepare('SELECT key, value FROM app_settings').all();
+  const cfg  = Object.fromEntries(rows.map(r => [r.key, r.value]));
+  const { uk_url: ukUrl, uk_user: username, uk_pass: password } = cfg;
+  if (!ukUrl || !username || !password) return res.status(503).json({ error: 'Keine UK-Zugangsdaten' });
+
+  const targetName = decodeURIComponent(req.params.name);
+  const base   = ukUrl.replace(/\/$/, '');
+  const socket = ioClient(base, { transports: ['websocket', 'polling'], reconnection: false, timeout: 10000 });
+
+  let settled = false;
+  const finish = (statusCode, data) => {
+    if (settled) return; settled = true;
+    try { socket.disconnect(); } catch(_) {}
+    res.status(statusCode).json(data);
+  };
+  const globalTimeout = setTimeout(() => finish(504, { error: 'Timeout' }), 18000);
+
+  socket.on('connect_error', (e) => { clearTimeout(globalTimeout); finish(503, { error: e.message }); });
+  socket.on('connect', () => {
+    socket.emit('login', { username, password }, (loginRes) => {
+      if (!loginRes?.ok) { clearTimeout(globalTimeout); return finish(401, { error: 'Auth fehlgeschlagen' }); }
+
+      let monitorId   = null;
+      let monitorInfo = null;
+      let heartbeats  = [];
+      const uptimes   = {};   // '24': 0.99, '720': 0.97 etc
+      let avgPing     = null;
+
+      const done = setTimeout(() => {
+        clearTimeout(globalTimeout);
+        if (!monitorInfo) return finish(404, { error: `Monitor "${targetName}" nicht gefunden` });
+        finish(200, { monitor: monitorInfo, heartbeats, uptimes, avgPing });
+      }, 4000);
+
+      socket.once('monitorList', (list) => {
+        for (const [id, mon] of Object.entries(list || {})) {
+          if (mon.name === targetName) {
+            monitorId   = id;
+            monitorInfo = {
+              id, name: mon.name, type: mon.type, url: mon.url,
+              active: mon.active, interval: mon.interval,
+              latestHeartbeat: mon.heartbeat || null,
+            };
+            break;
+          }
+        }
+      });
+
+      socket.on('heartbeatList', (id, hbList, overwrite) => {
+        if (id !== monitorId) return;
+        const list = Array.isArray(hbList) ? hbList : [];
+        heartbeats = list.slice(-50).map(h => ({ status: h.status, ping: h.ping, time: h.time, msg: h.msg }));
+      });
+
+      socket.on('uptime', (id, period, value) => {
+        if (id !== monitorId) return;
+        uptimes[String(period)] = Math.round(value * 10000) / 100;
+      });
+
+      socket.on('avgPing', (id, value) => {
+        if (id !== monitorId) return;
+        avgPing = Math.round(value);
+      });
+    });
+  });
+});
+
 app.post('/api/integrations/uptime-kuma/sync', requireAuth, (req, res) => {
   const { ukUrl, username, password } = req.body;
   if (!ukUrl || !username || !password) return res.status(400).json({ error: 'ukUrl, username und password erforderlich' });
