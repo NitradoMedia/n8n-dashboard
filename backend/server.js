@@ -213,6 +213,13 @@ async function initPG(retries = 15) {
           ip TEXT,
           created_at TIMESTAMP DEFAULT NOW()
         );
+        CREATE TABLE IF NOT EXISTS user_settings (
+          user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          key TEXT NOT NULL,
+          value TEXT NOT NULL DEFAULT '{}',
+          updated_at TIMESTAMP DEFAULT NOW(),
+          PRIMARY KEY (user_id, key)
+        );
       `);
       const { rowCount } = await pgPool.query("SELECT id FROM users WHERE role='admin' LIMIT 1");
       if (rowCount === 0) {
@@ -323,6 +330,29 @@ app.post('/api/auth/change-password', async (req, res) => {
       return res.status(401).json({ error: 'Altes Passwort falsch' });
     const hash = await bcrypt.hash(newPassword, 10);
     await pgPool.query('UPDATE users SET password_hash=$1 WHERE id=$2', [hash, req.user.id]);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ─── User Settings (per-user, cross-device) ──────────────────
+app.get('/api/user/settings', requireAuth, async (req, res) => {
+  try {
+    const { rows } = await pgPool.query(
+      'SELECT key, value FROM user_settings WHERE user_id=$1', [req.user.id]);
+    const out = {};
+    rows.forEach(r => { try { out[r.key] = JSON.parse(r.value); } catch { out[r.key] = r.value; } });
+    res.json(out);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.put('/api/user/settings/:key', requireAuth, async (req, res) => {
+  try {
+    const val = JSON.stringify(req.body.value !== undefined ? req.body.value : req.body);
+    await pgPool.query(
+      `INSERT INTO user_settings (user_id, key, value, updated_at)
+       VALUES ($1,$2,$3,NOW())
+       ON CONFLICT (user_id, key) DO UPDATE SET value=$3, updated_at=NOW()`,
+      [req.user.id, req.params.key, val]);
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
