@@ -3034,10 +3034,17 @@ let sbeDragSrc = null;
 function renderSidebarEditor() {
   const list = document.getElementById('sbe-list');
   if (!list) return;
-  const cfg = loadSidebarConfig();
+  const cfg     = loadSidebarConfig();
+  const isAdmin = currentUser?.role === 'admin';
   list.innerHTML = '';
 
   cfg.items.forEach((item, idx) => {
+    // Customers must not see admin-only pages at all
+    if (item.type === 'page') {
+      const def = SIDEBAR_PAGE_DEFS.find(p => p.page === item.id);
+      if (def?.admin && !isAdmin) return;
+    }
+
     const el = document.createElement('div');
     el.className = 'sbe-item' + (item.type === 'divider' ? ' sbe-divider' : '');
     el.draggable = true;
@@ -3050,7 +3057,7 @@ function renderSidebarEditor() {
     if (item.type === 'page') {
       const def = SIDEBAR_PAGE_DEFS.find(p => p.page === item.id);
       iconHtml = `<span class="sbe-icon" style="color:var(--accent)"><i class="ti ${def?.icon || 'ti-circle'}"></i></span>`;
-      labelHtml = `<span class="sbe-label">${def?.label || item.id}${def?.admin ? ' <span style="font-size:9px;color:var(--text-muted);background:rgba(232,99,10,0.15);padding:1px 5px;border-radius:4px">Admin</span>' : ''}</span>`;
+      labelHtml = `<span class="sbe-label">${def?.label || item.id}</span>`;
     } else if (item.type === 'divider') {
       iconHtml = `<span class="sbe-icon" style="color:var(--text-muted)"><i class="ti ti-minus"></i></span>`;
       labelHtml = `<input class="form-control" placeholder="Label (optional)" value="${esc(item.label||'')}" style="flex:1;font-size:11px;padding:3px 7px;height:26px" oninput="sbeUpdateDividerLabel(${idx},this.value)">`;
